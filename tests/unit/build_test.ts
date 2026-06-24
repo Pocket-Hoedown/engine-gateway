@@ -1,4 +1,5 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals, assertThrows } from "jsr:@std/assert";
+import { Dex } from "@pkmn/sim";
 import { StandardMode } from "../../src/modes/standard.ts";
 import { buildBattleInputs } from "../../src/modes/build.ts";
 import type { PhfTeam } from "../../src/teams/types.ts";
@@ -44,4 +45,15 @@ Deno.test("buildBattleInputs bakes seeded IVs into packed teams (different seeds
   // Same teams, different seeds: IVs are the only seed-dependent part of the packed
   // string, so differing output proves IVs are assigned and packed in.
   assert(a.packedTeams[0] !== b.packedTeams[0]);
+});
+
+Deno.test("Standard mode format ids exist in the sim", () => {
+  for (const f of ["single", "double", "triple"] as const) {
+    const id = StandardMode.compileFormatId(f);
+    assert(Dex.formats.get(id).exists, `format ${id} should exist in the sim`);
+  }
+});
+
+Deno.test("Standard mode rejects 'multi' until Phase 3", () => {
+  assertThrows(() => StandardMode.compileFormatId("multi"));
 });

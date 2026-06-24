@@ -20,5 +20,4 @@ export type { BattleResult, SimSeed } from "./battle/runner.ts";
 export { buildBattleInputs } from "./modes/build.ts";
 export { StandardMode } from "./modes/standard.ts";
 export type { BattleFormat, BattleInputs, GameMode } from "./modes/types.ts";
-export { toPokemonSets } from "./teams/types.ts";
 export type { PhfMember, PhfTeam } from "./teams/types.ts";
