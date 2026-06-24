@@ -12,16 +12,19 @@ export function buildBattleInputs(
   teams: [PhfTeam, PhfTeam],
   seed: number,
 ): BattleInputs {
-  const packed = teams.map((team, idx) => {
-    const sets = toPokemonSets(team);
-    // Offset each side's IV seed so the two teams don't get identical spreads.
-    assignTeamIVs(sets, team.members, seed + idx * 1000003);
+  const [t0, t1] = teams;
+  const pack = (t: PhfTeam, ivSeed: number): string => {
+    const sets = toPokemonSets(t);
+    assignTeamIVs(sets, t.members, ivSeed);
     return Teams.pack(sets);
-  }) as [string, string];
-
+  };
+  const packedTeams: [string, string] = [
+    pack(t0, seed),
+    pack(t1, seed + 1000003),
+  ];
   return {
     formatid: mode.compileFormatId(format),
-    packedTeams: packed,
+    packedTeams,
     seed: simSeedFromInt(seed),
   };
 }
