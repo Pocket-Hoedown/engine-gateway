@@ -24,10 +24,29 @@ Deno.test("toPokemonSets applies defaults and copies battle fields", () => {
   assertEquals(set.moves, ["Scald", "Ice Beam", "Hydro Pump", "Encore"]);
   assertEquals(set.level, 100); // default
   assertEquals(set.happiness, 255); // default
+  assertEquals(set.gender, ""); // default
+  assertEquals(set.shiny, false); // default
   assertEquals(set.evs, { hp: 4, atk: 0, def: 0, spa: 252, spd: 0, spe: 252 });
 });
 
 Deno.test("toPokemonSets does not assign IVs", () => {
   const [set] = toPokemonSets(TEAM);
   assertEquals(set.ivs, undefined);
+});
+
+Deno.test("toPokemonSets includes hpType when member specifies it", () => {
+  const teamWithHpType: PhfTeam = {
+    ...TEAM,
+    members: [{
+      ...TEAM.members[0],
+      hpType: "Fire",
+    }],
+  };
+  const [set] = toPokemonSets(teamWithHpType);
+  assertEquals(set.hpType, "Fire");
+});
+
+Deno.test("toPokemonSets leaves hpType undefined when member does not specify it", () => {
+  const [set] = toPokemonSets(TEAM);
+  assertEquals(set.hpType, undefined);
 });

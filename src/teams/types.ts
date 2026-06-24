@@ -28,6 +28,7 @@ const ZERO_EVS: StatsTable = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
  *  (assigned per-match by assignTeamIVs). */
 export function toPokemonSets(team: PhfTeam): PokemonSet[] {
   return team.members.map((m) => {
+    // Cast required: PokemonSet.ivs is intentionally left unset (assigned per-match by assignTeamIVs)
     const set = {
       name: m.species,
       species: m.species,
