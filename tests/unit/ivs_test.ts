@@ -22,9 +22,11 @@ Deno.test("randomizeIVs honors a requested Hidden Power type", () => {
 
 Deno.test("randomizeIVs with no hpType yields in-range IVs", () => {
   const member: PhfMember = { species: "Tauros", ability: "Intimidate", nature: "Adamant", moves: ["Return"] };
-  const ivs = randomizeIVs(member, mulberry32(7));
-  for (const stat of ["hp", "atk", "def", "spa", "spd", "spe"] as const) {
-    assert(ivs[stat] >= 0 && ivs[stat] <= 31);
+  for (let s = 0; s < 25; s++) {
+    const ivs = randomizeIVs(member, mulberry32(s));
+    for (const stat of ["hp", "atk", "def", "spa", "spd", "spe"] as const) {
+      assert(ivs[stat] >= 0 && ivs[stat] <= 31);
+    }
   }
 });
 

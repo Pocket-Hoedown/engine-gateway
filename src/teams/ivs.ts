@@ -18,8 +18,6 @@ export function computeHpType(ivs: StatsTable): string {
   return HP_TYPES[Math.floor((paritySum(ivs) * 15) / 63)];
 }
 
-const STATS = ["hp", "atk", "def", "spa", "spd", "spe"] as const;
-
 /** Random IV 0..31; if forceParity is given, force the low bit. */
 function randomIV(rng: () => number, forceParity?: 0 | 1): number {
   const v = Math.floor(rng() * 32);
