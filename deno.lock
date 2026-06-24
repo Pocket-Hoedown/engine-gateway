@@ -1,0 +1,49 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@*": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
+    "npm:@pkmn/sim@~0.10.11": "0.10.11"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "npm": {
+    "@pkmn/sets@5.2.0": {
+      "integrity": "sha512-WHAW6bZu0WCo/3b+LTW7BE0fBhYZnWH1lCXIu2an8/wTiZ/+s1eTcQYj7W/YQKxWT5dm/La03AZ6CeqdJip9CQ==",
+      "dependencies": [
+        "@pkmn/types"
+      ]
+    },
+    "@pkmn/sim@0.10.11": {
+      "integrity": "sha512-v45jqIgFnEB3hc7e97QlWDnfkIef6mfZ0WjWHWw+f21cYyksGVLzxIEulR9xuOazeszA+ycDx6O6B3JOJAS5Xg==",
+      "dependencies": [
+        "@pkmn/sets",
+        "@pkmn/streams",
+        "ts-chacha20"
+      ]
+    },
+    "@pkmn/streams@1.1.0": {
+      "integrity": "sha512-Pp9k7gt4xd76DqTU+LQEUyzuaauM4bV1MlehVtX1NS7o9zMFtjw50MfaEQ62dIMZyzxNjsJGoLGBeY1iSYLsRA=="
+    },
+    "@pkmn/types@4.0.0": {
+      "integrity": "sha512-gR2s/pxJYEegek1TtsYCQupNR3d5hMlcJFsiD+2LyfKr4tc+gETTql47tWLX5mFSbPcbXh7f4+7txlMIDoZx/g=="
+    },
+    "ts-chacha20@1.2.0": {
+      "integrity": "sha512-PTyPoWYHc2we8P2NTn5hpYG211popWbkjiw+k63xqjeMrx9pPtXSclz9F3fu0Tpr+vfR1xxcQFwsEkh1cXMLqw=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:@pkmn/sim@~0.10.11"
+    ]
+  }
+}
