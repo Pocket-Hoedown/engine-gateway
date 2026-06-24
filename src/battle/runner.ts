@@ -36,11 +36,12 @@ export async function runHeadlessBattle(opts: HeadlessBattleOptions): Promise<Ba
   void p1.start();
   void p2.start();
 
-  void streams.omniscient.write(
+  let startError: unknown = null;
+  Promise.resolve(streams.omniscient.write(
     `>start ${JSON.stringify(spec)}\n` +
       `>player p1 ${JSON.stringify(p1spec)}\n` +
       `>player p2 ${JSON.stringify(p2spec)}`,
-  );
+  )).catch((e: unknown) => { startError = e; });
 
   const log: string[] = [];
   let winner: string | null = null;
@@ -50,5 +51,6 @@ export async function runHeadlessBattle(opts: HeadlessBattleOptions): Promise<Ba
       if (line.startsWith("|win|")) winner = line.slice("|win|".length);
     }
   }
+  if (startError !== null) throw new Error(`Failed to start battle: ${String(startError)}`);
   return { winner, log };
 }

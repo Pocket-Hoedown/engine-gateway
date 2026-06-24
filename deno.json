@@ -1,10 +1,12 @@
 {
   "name": "@hoedown/gateway",
+  "exports": "./src/battle/runner.ts",
   "tasks": {
     "test": "deno test -A"
   },
   "imports": {
-    "@pkmn/sim": "npm:@pkmn/sim@^0.10.11"
+    "@pkmn/sim": "npm:@pkmn/sim@^0.10.11",
+    "@std/assert": "jsr:@std/assert"
   },
   "fmt": { "lineWidth": 100 },
   "lint": { "rules": { "tags": ["recommended"] } }

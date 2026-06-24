@@ -3,7 +3,7 @@
   "specifiers": {
     "jsr:@std/assert@*": "1.0.19",
     "jsr:@std/internal@^1.0.12": "1.0.14",
-    "npm:@pkmn/sim@~0.10.11": "0.10.11"
+    "npm:@pkmn/sim@^0.10.11": "0.10.11"
   },
   "jsr": {
     "@std/assert@1.0.19": {
@@ -43,7 +43,8 @@
   },
   "workspace": {
     "dependencies": [
-      "npm:@pkmn/sim@~0.10.11"
+      "jsr:@std/assert@*",
+      "npm:@pkmn/sim@^0.10.11"
     ]
   }
 }
