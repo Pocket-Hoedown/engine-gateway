@@ -1,0 +1,12 @@
+# Generated Gen-5 asset pack (built by scripts/sync-sprites.ts in Phase 2)
+/assets/dist/
+host-pack/
+
+# Deno (npm: deps are globally cached; node_modules only if nodeModulesDir is enabled)
+node_modules/
+vendor/
+
+# Build output / logs / OS cruft
+dist/
+*.log
+.DS_Store
