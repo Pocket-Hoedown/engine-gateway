@@ -10,3 +10,7 @@ vendor/
 dist/
 *.log
 .DS_Store
+
+# Git worktrees + subagent-driven-development progress ledger (local scratch)
+.worktrees/
+.superpowers/
