@@ -1,6 +1,6 @@
-import { assertEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { gen } from "../../src/dex/gen.ts";
-import { toAbilityDTO, toItemDTO, toMoveDTO, toSpeciesDTO } from "../../src/dex/map.ts";
+import { toAbilityDTO, toItemDTO, toMoveDTO, toSpeciesDTO, toTypeChartDTO } from "../../src/dex/map.ts";
 
 Deno.test("toSpeciesDTO maps core Gen-5 species fields", () => {
   const dto = toSpeciesDTO(gen.species.get("charizard")!);
@@ -55,4 +55,15 @@ Deno.test("toMoveDTO maps a status move and a never-miss move", () => {
 Deno.test("toAbilityDTO and toItemDTO map identity fields", () => {
   assertEquals(toAbilityDTO(gen.abilities.get("intimidate")!).name, "Intimidate");
   assertEquals(toItemDTO(gen.items.get("leftovers")!).name, "Leftovers");
+});
+
+Deno.test("toTypeChartDTO encodes Gen-5 type effectiveness", () => {
+  const chart = toTypeChartDTO(gen);
+  assertEquals(chart.types.length, 17);
+  assert(!chart.types.includes("Fairy"));
+  assertEquals(chart.effectiveness["Fire"]["Grass"], 2);
+  assertEquals(chart.effectiveness["Fire"]["Water"], 0.5);
+  assertEquals(chart.effectiveness["Ghost"]["Normal"], 0);   // immune
+  assertEquals(chart.effectiveness["Electric"]["Ground"], 0); // immune
+  assertEquals(chart.effectiveness["Normal"]["Rock"], 0.5);
 });

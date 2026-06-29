@@ -1,5 +1,5 @@
-import type { Ability, Item, Move, Specie } from "@pkmn/data";
-import type { AbilityDTO, ItemDTO, MoveDTO, SpeciesDTO } from "./dto.ts";
+import type { Ability, Generation, Item, Move, Specie } from "@pkmn/data";
+import type { AbilityDTO, ItemDTO, MoveDTO, SpeciesDTO, TypeChartDTO } from "./dto.ts";
 import { gen } from "./gen.ts";
 
 export function toSpeciesDTO(s: Specie): SpeciesDTO {
@@ -62,4 +62,21 @@ export function toAbilityDTO(a: Ability): AbilityDTO {
 
 export function toItemDTO(i: Item): ItemDTO {
   return { id: i.id, num: i.num, name: i.name, shortDesc: i.shortDesc, desc: i.desc };
+}
+
+/** Build the Gen-5 type chart: exactly 17 types, multipliers keyed [attacking][defending]. */
+export function toTypeChartDTO(g: Generation): TypeChartDTO {
+  // Gen 5 has 17 battle types (no "???", no Fairy); filter "???" defensively.
+  const typeList = [...g.types].filter((t) => t.name !== "???");
+  const types = typeList.map((t) => t.name);
+  const effectiveness: Record<string, Record<string, 0 | 0.5 | 1 | 2>> = {};
+  for (const atk of typeList) {
+    const row: Record<string, 0 | 0.5 | 1 | 2> = {};
+    for (const def of typeList) {
+      // atk.effectiveness[def] = atk attacking def (verified Fire.effectiveness.Grass === 2).
+      row[def.name] = atk.effectiveness[def.name];
+    }
+    effectiveness[atk.name] = row;
+  }
+  return { types, effectiveness };
 }
