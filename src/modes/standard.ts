@@ -1,4 +1,4 @@
-import type { BattleFormat, GameMode } from "./types.ts";
+import type { GameMode } from "./types.ts";
 
 const FORMAT_IDS: Record<"single" | "double" | "triple", string> = {
   single: "gen5customgame",
