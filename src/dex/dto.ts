@@ -7,9 +7,7 @@ export interface SpeciesDTO {
   abilities: { primary: string; secondary?: string; hidden?: string };
   eggGroups: string[];
   genderRatio: { M: number; F: number };
-  heightm: number;
   weightkg: number;
-  color: string;
   prevo?: string;
   evos?: string[];
   baseSpecies?: string;

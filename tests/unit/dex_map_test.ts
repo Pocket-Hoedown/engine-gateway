@@ -12,10 +12,25 @@ Deno.test("toSpeciesDTO maps core Gen-5 species fields", () => {
   assertEquals(dto.abilities.primary, "Blaze");
   assertEquals(dto.abilities.hidden, "Solar Power");
   assertEquals(dto.prevo, "charmeleon");
+  assertEquals(dto.eggGroups, ["Monster", "Dragon"]);
+  assertEquals(dto.genderRatio, { M: 0.875, F: 0.125 });
+  assertEquals(dto.weightkg, 90.5);
 });
 
 Deno.test("toSpeciesDTO omits optional links for a no-evolution species", () => {
   const dto = toSpeciesDTO(gen.species.get("tauros")!);
   assertEquals(dto.prevo, undefined);
   assertEquals(dto.evos, undefined);
+});
+
+Deno.test("toSpeciesDTO normalizes evolutions to ids", () => {
+  const dto = toSpeciesDTO(gen.species.get("charmander")!);
+  assertEquals(dto.evos, ["charmeleon"]);
+  assertEquals(dto.prevo, undefined);
+});
+
+Deno.test("toSpeciesDTO carries baseSpecies and forme for alternate formes", () => {
+  const dto = toSpeciesDTO(gen.species.get("rotomheat")!);
+  assertEquals(dto.baseSpecies, "Rotom");
+  assertEquals(dto.forme, "Heat");
 });

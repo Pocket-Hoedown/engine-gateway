@@ -3,8 +3,6 @@ import type { SpeciesDTO } from "./dto.ts";
 import { gen } from "./gen.ts";
 
 export function toSpeciesDTO(s: Specie): SpeciesDTO {
-  // deno-lint-ignore no-explicit-any
-  const sa = s as any;
   const dto: SpeciesDTO = {
     id: s.id,
     num: s.num,
@@ -21,9 +19,7 @@ export function toSpeciesDTO(s: Specie): SpeciesDTO {
     abilities: { primary: s.abilities[0] },
     eggGroups: [...s.eggGroups],
     genderRatio: { M: s.genderRatio.M, F: s.genderRatio.F },
-    heightm: sa.heightm,
-    weightkg: sa.weightkg,
-    color: sa.color,
+    weightkg: s.weightkg,
   };
   if (s.abilities[1]) dto.abilities.secondary = s.abilities[1];
   if (s.abilities.H) dto.abilities.hidden = s.abilities.H;
@@ -32,7 +28,7 @@ export function toSpeciesDTO(s: Specie): SpeciesDTO {
     dto.prevo = prevoSpecies?.id || s.prevo;
   }
   if (s.evos && s.evos.length > 0) {
-    dto.evos = s.evos.map(evoName => {
+    dto.evos = s.evos.map((evoName) => {
       const evoSpecies = gen.species.get(evoName);
       return evoSpecies?.id || evoName;
     });
