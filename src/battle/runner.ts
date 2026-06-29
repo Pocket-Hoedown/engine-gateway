@@ -47,6 +47,10 @@ export async function runHeadlessBattle(opts: HeadlessBattleOptions): Promise<Ba
   let winner: string | null = null;
   for await (const chunk of streams.omniscient) {
     for (const line of chunk.split("\n")) {
+      // Drop the sim's wall-clock timestamp lines (`|t:|<unixtime>`, emitted each
+      // turn): they are not seed-derived, so keeping them would break the same-seed
+      // replay guarantee whenever a transcript crosses a one-second boundary.
+      if (line.startsWith("|t:|")) continue;
       log.push(line);
       if (line.startsWith("|win|")) winner = line.slice("|win|".length);
     }
