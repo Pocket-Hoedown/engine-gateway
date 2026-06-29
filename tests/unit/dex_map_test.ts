@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { gen } from "../../src/dex/gen.ts";
-import { toSpeciesDTO } from "../../src/dex/map.ts";
+import { toAbilityDTO, toItemDTO, toMoveDTO, toSpeciesDTO } from "../../src/dex/map.ts";
 
 Deno.test("toSpeciesDTO maps core Gen-5 species fields", () => {
   const dto = toSpeciesDTO(gen.species.get("charizard")!);
@@ -33,4 +33,26 @@ Deno.test("toSpeciesDTO carries baseSpecies and forme for alternate formes", () 
   const dto = toSpeciesDTO(gen.species.get("rotomheat")!);
   assertEquals(dto.baseSpecies, "Rotom");
   assertEquals(dto.forme, "Heat");
+});
+
+Deno.test("toMoveDTO maps a damaging move", () => {
+  const dto = toMoveDTO(gen.moves.get("thunderbolt")!);
+  assertEquals(dto.id, "thunderbolt");
+  assertEquals(dto.type, "Electric");
+  assertEquals(dto.category, "Special");
+  assertEquals(dto.basePower, 95); // Gen-5 Thunderbolt is 95 BP
+  assertEquals(dto.accuracy, 100);
+});
+
+Deno.test("toMoveDTO maps a status move and a never-miss move", () => {
+  const sd = toMoveDTO(gen.moves.get("swordsdance")!);
+  assertEquals(sd.category, "Status");
+  assertEquals(sd.basePower, 0);
+  const aa = toMoveDTO(gen.moves.get("aerialace")!);
+  assertEquals(aa.accuracy, null); // bypasses accuracy
+});
+
+Deno.test("toAbilityDTO and toItemDTO map identity fields", () => {
+  assertEquals(toAbilityDTO(gen.abilities.get("intimidate")!).name, "Intimidate");
+  assertEquals(toItemDTO(gen.items.get("leftovers")!).name, "Leftovers");
 });

@@ -1,5 +1,5 @@
-import type { Specie } from "@pkmn/data";
-import type { SpeciesDTO } from "./dto.ts";
+import type { Ability, Item, Move, Specie } from "@pkmn/data";
+import type { AbilityDTO, ItemDTO, MoveDTO, SpeciesDTO } from "./dto.ts";
 import { gen } from "./gen.ts";
 
 export function toSpeciesDTO(s: Specie): SpeciesDTO {
@@ -36,4 +36,30 @@ export function toSpeciesDTO(s: Specie): SpeciesDTO {
   if (s.baseSpecies && s.baseSpecies !== s.name) dto.baseSpecies = s.baseSpecies;
   if (s.forme) dto.forme = s.forme;
   return dto;
+}
+
+export function toMoveDTO(m: Move): MoveDTO {
+  return {
+    id: m.id,
+    num: m.num,
+    name: m.name,
+    type: m.type,
+    category: m.category,
+    basePower: m.basePower,
+    accuracy: m.accuracy === true ? null : m.accuracy,
+    pp: m.pp,
+    priority: m.priority,
+    target: m.target,
+    flags: Object.keys(m.flags),
+    shortDesc: m.shortDesc,
+    desc: m.desc,
+  };
+}
+
+export function toAbilityDTO(a: Ability): AbilityDTO {
+  return { id: a.id, num: a.num, name: a.name, shortDesc: a.shortDesc, desc: a.desc };
+}
+
+export function toItemDTO(i: Item): ItemDTO {
+  return { id: i.id, num: i.num, name: i.name, shortDesc: i.shortDesc, desc: i.desc };
 }
