@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { mulberry32 } from "../../src/teams/rng.ts";
 import { assignTeamIVs, computeHpType, randomizeIVs } from "../../src/teams/ivs.ts";
 import { type PhfMember, toPokemonSets } from "../../src/teams/types.ts";

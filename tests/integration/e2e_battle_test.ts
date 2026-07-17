@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { runMatch, StandardMode } from "../../src/index.ts";
 import type { PhfTeam } from "../../src/index.ts";
 

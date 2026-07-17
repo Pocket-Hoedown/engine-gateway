@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { runHeadlessBattle, type SimSeed } from "../../src/battle/runner.ts";
 
 // Two simple, legal Gen-5 sets in Showdown packed format (singles, Custom Game).

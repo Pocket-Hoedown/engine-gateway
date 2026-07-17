@@ -1,4 +1,4 @@
-import { assertEquals } from "jsr:@std/assert";
+import { assertEquals } from "@std/assert";
 import { type PhfTeam, toPokemonSets } from "../../src/teams/types.ts";
 
 const TEAM: PhfTeam = {

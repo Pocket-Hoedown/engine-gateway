@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertThrows } from "jsr:@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import { Dex } from "@pkmn/sim";
 import { StandardMode } from "../../src/modes/standard.ts";
 import { buildBattleInputs } from "../../src/modes/build.ts";
