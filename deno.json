@@ -3,14 +3,16 @@
   "exports": "./src/battle/runner.ts",
   "tasks": {
     "test": "deno test -A",
-    "serve": "deno run -A src/server.ts"
+    "serve": "deno run -A src/server.ts",
+    "build:sprites": "deno run -A src/sprites/pipeline.ts"
   },
   "imports": {
     "@hono/hono": "jsr:@hono/hono@^4.12.27",
     "@pkmn/data": "npm:@pkmn/data@^0.10.11",
     "@pkmn/dex": "npm:@pkmn/dex@^0.10.11",
     "@pkmn/sim": "npm:@pkmn/sim@^0.10.11",
-    "@std/assert": "jsr:@std/assert"
+    "@std/assert": "jsr:@std/assert",
+    "@std/path": "jsr:@std/path@^1"
   },
   "fmt": { "lineWidth": 100 },
   "lint": { "rules": { "tags": ["recommended"] } }
