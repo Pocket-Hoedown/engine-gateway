@@ -12,9 +12,20 @@ import {
   listMoves,
   listSpecies,
 } from "../dex/service.ts";
+import { registerSpriteRoutes } from "./sprites.ts";
+import {
+  SpriteNotFoundError,
+  SpritePackUnavailableError,
+  SpriteService,
+} from "../sprites/service.ts";
 
-/** Build the read-only Dex HTTP app. Stateless; safe to call once per process or per test. */
-export function createApp(): Hono {
+export interface AppOptions {
+  /** Directory of the built sprite pack. Defaults to $SPRITE_PACK_DIR or `assets/sprites/gen5`. */
+  spritePackDir?: string;
+}
+
+/** Build the read-only Dex + sprite HTTP app. Stateless; safe to call once per process or per test. */
+export function createApp(opts: AppOptions = {}): Hono {
   const app = new Hono();
 
   app.get("/healthz", (c) => c.json({ ok: true }));
@@ -34,9 +45,17 @@ export function createApp(): Hono {
 
   app.get("/dex/types", (c) => c.json(getTypeChart()));
 
+  const sprites = new SpriteService(
+    opts.spritePackDir ?? Deno.env.get("SPRITE_PACK_DIR") ?? "assets/sprites/gen5",
+  );
+  registerSpriteRoutes(app, sprites);
+
   app.onError((err, c) => {
-    if (err instanceof DexNotFoundError) {
+    if (err instanceof DexNotFoundError || err instanceof SpriteNotFoundError) {
       return c.json({ error: { code: "not_found", message: err.message } }, 404);
+    }
+    if (err instanceof SpritePackUnavailableError) {
+      return c.json({ error: { code: "sprites_unavailable", message: err.message } }, 503);
     }
     throw err; // unexpected → Hono's default 500
   });
