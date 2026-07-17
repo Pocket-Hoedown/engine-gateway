@@ -16,9 +16,10 @@ Deno.test("winnerFromLine extracts the winner, null otherwise", () => {
   assertEquals(winnerFromLine("|turn|3"), null);
 });
 
-Deno.test("isTieLine matches a tie", () => {
+Deno.test("isTieLine matches a tie but NOT |teampreview (loose-prefix regression)", () => {
   assert(isTieLine("|tie"));
   assert(!isTieLine("|win|P2"));
+  assert(!isTieLine("|teampreview"), "|teampreview must not read as a tie");
 });
 
 Deno.test("buildStartBlock builds the 3-line start command", () => {

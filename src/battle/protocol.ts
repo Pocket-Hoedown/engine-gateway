@@ -11,9 +11,9 @@ export function winnerFromLine(line: string): string | null {
   return line.startsWith("|win|") ? line.slice("|win|".length) : null;
 }
 
-/** Whether a line signals a tie. */
+/** Whether a line signals a tie. Exact match — must not catch `|teampreview`. */
 export function isTieLine(line: string): boolean {
-  return line.startsWith("|tie");
+  return line === "|tie" || line.startsWith("|tie|");
 }
 
 /** Build the sim `>start` / `>player` command block that opens a battle. */
