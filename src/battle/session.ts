@@ -149,3 +149,26 @@ export class BattleSession {
     this.resolveEnded({ winner });
   }
 }
+
+/**
+ * Re-feed a captured input log into a fresh BattleStream and return the omniscient transcript +
+ * winner. Same {seed, inputLog} ⇒ identical battle (the replay guarantee).
+ */
+export async function reconstruct(replay: Replay): Promise<{ winner: string | null; log: string[] }> {
+  const battleStream = new BattleStreams.BattleStream();
+  const streams = BattleStreams.getPlayerStreams(battleStream);
+
+  for (const line of replay.inputLog) await streams.omniscient.write(line);
+
+  const log: string[] = [];
+  let winner: string | null = null;
+  for await (const chunk of streams.omniscient) {
+    for (const line of chunk.split("\n")) {
+      if (!line || isTimestampLine(line)) continue;
+      log.push(line);
+      const w = winnerFromLine(line);
+      if (w !== null) winner = w;
+    }
+  }
+  return { winner, log };
+}
