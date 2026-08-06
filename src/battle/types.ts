@@ -1,5 +1,7 @@
 import type { BattleFormat, GameMode } from "../modes/types.ts";
 import type { PhfTeam } from "../teams/types.ts";
+import type { SemanticEvent } from "./events.ts";
+import type { BattleState } from "./state.ts";
 
 export interface MoveOption {
   id: string;
@@ -34,7 +36,8 @@ export interface RequestDTO {
 
 export type BattleEvent =
   | { kind: "request"; request: RequestDTO }
-  | { kind: "protocol"; lines: string[] }
+  | { kind: "event"; events: SemanticEvent[] }
+  | { kind: "state"; state: BattleState }
   | { kind: "error"; message: string }
   | { kind: "ended"; winner: string | null };
 

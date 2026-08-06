@@ -6,8 +6,11 @@
     "jsr:@std/internal@^1.0.12": "1.0.14",
     "jsr:@std/internal@^1.0.14": "1.0.14",
     "jsr:@std/path@1": "1.1.6",
+    "npm:@pkmn/client@0.7.3": "0.7.3",
+    "npm:@pkmn/client@~0.7.3": "0.7.3",
     "npm:@pkmn/data@~0.10.11": "0.10.11",
     "npm:@pkmn/dex@~0.10.11": "0.10.11",
+    "npm:@pkmn/protocol@~0.7.3": "0.7.3",
     "npm:@pkmn/sim@~0.10.11": "0.10.11"
   },
   "jsr": {
@@ -31,6 +34,13 @@
     }
   },
   "npm": {
+    "@pkmn/client@0.7.3": {
+      "integrity": "sha512-cFiibV4SdG7Q1OX0fhLfkUDlOhAIcMz0ENh4Vw758nxsCKlAU5ik5DN8JkKLGYyrL5tkwN1l3blHsWCJ3wbyLg==",
+      "dependencies": [
+        "@pkmn/data",
+        "@pkmn/protocol"
+      ]
+    },
     "@pkmn/data@0.10.11": {
       "integrity": "sha512-WZiOOZEdIJybC1M2EJVazx+OKH5Hh544cPhNnjgNjn3B0LORP82YkL4jpZqkww+NoIHIXMvJBYLKg3GZBNm4kQ==",
       "dependencies": [
@@ -48,6 +58,13 @@
       "dependencies": [
         "@pkmn/dex-types"
       ]
+    },
+    "@pkmn/protocol@0.7.3": {
+      "integrity": "sha512-ohSQhckON0OWf/0rlO3gioiR0pFdI/0YNh4lUtsFyrJ2ntrpdsF/n3tasFo2Mxag0fuWNsIGo9lwCFNbxSdi1A==",
+      "dependencies": [
+        "@pkmn/types"
+      ],
+      "bin": true
     },
     "@pkmn/sets@5.2.0": {
       "integrity": "sha512-WHAW6bZu0WCo/3b+LTW7BE0fBhYZnWH1lCXIu2an8/wTiZ/+s1eTcQYj7W/YQKxWT5dm/La03AZ6CeqdJip9CQ==",
@@ -78,8 +95,10 @@
       "jsr:@hono/hono@^4.12.27",
       "jsr:@std/assert@*",
       "jsr:@std/path@1",
+      "npm:@pkmn/client@~0.7.3",
       "npm:@pkmn/data@~0.10.11",
       "npm:@pkmn/dex@~0.10.11",
+      "npm:@pkmn/protocol@~0.7.3",
       "npm:@pkmn/sim@~0.10.11"
     ]
   }
