@@ -14,8 +14,22 @@ const TEAM_PREVIEW = JSON.stringify({
 const ACTIVE = JSON.stringify({
   active: [{
     moves: [
-      { move: "Thunderbolt", id: "thunderbolt", pp: 24, maxpp: 24, target: "normal", disabled: false },
-      { move: "Quick Attack", id: "quickattack", pp: 48, maxpp: 48, target: "normal", disabled: false },
+      {
+        move: "Thunderbolt",
+        id: "thunderbolt",
+        pp: 24,
+        maxpp: 24,
+        target: "normal",
+        disabled: false,
+      },
+      {
+        move: "Quick Attack",
+        id: "quickattack",
+        pp: 48,
+        maxpp: 48,
+        target: "normal",
+        disabled: false,
+      },
     ],
   }],
   side: {

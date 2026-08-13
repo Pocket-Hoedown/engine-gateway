@@ -10,9 +10,16 @@ const species: Record<string, SmogonSpecies> = {
 };
 const genIds = new Set(["bulbasaur", "venusaur", "rotomheat"]); // darmanitangalar deliberately absent
 const files = new Set([
-  "s32.gif", "s32-b.gif", "s32-s.gif", "s32-b-s.gif",
-  "s96.gif", "s96-b.gif", "s96-f.gif", "s96-b-f.gif", // Venusaur has a female sprite, no shiny in fixture
-  "s15329.gif", "s15329-b.gif",
+  "s32.gif",
+  "s32-b.gif",
+  "s32-s.gif",
+  "s32-b-s.gif",
+  "s96.gif",
+  "s96-b.gif",
+  "s96-f.gif",
+  "s96-b-f.gif", // Venusaur has a female sprite, no shiny in fixture
+  "s15329.gif",
+  "s15329-b.gif",
   "s17762.gif", // present but out of scope
 ]);
 

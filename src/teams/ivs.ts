@@ -4,8 +4,22 @@ import { mulberry32 } from "./rng.ts";
 
 // Gen-5 Hidden Power type order (16 types; no Normal/Fairy).
 const HP_TYPES = [
-  "Fighting", "Flying", "Poison", "Ground", "Rock", "Bug", "Ghost", "Steel",
-  "Fire", "Water", "Grass", "Electric", "Psychic", "Ice", "Dragon", "Dark",
+  "Fighting",
+  "Flying",
+  "Poison",
+  "Ground",
+  "Rock",
+  "Bug",
+  "Ghost",
+  "Steel",
+  "Fire",
+  "Water",
+  "Grass",
+  "Electric",
+  "Psychic",
+  "Ice",
+  "Dragon",
+  "Dark",
 ] as const;
 
 // Bit weights for the parity of each stat's IV: HP=1, Atk=2, Def=4, Spe=8, SpA=16, SpD=32.
@@ -33,8 +47,12 @@ function randomIV(rng: () => number, forceParity?: 0 | 1): number {
 export function randomizeIVs(member: PhfMember, rng: () => number): StatsTable {
   if (!member.hpType) {
     return {
-      hp: randomIV(rng), atk: randomIV(rng), def: randomIV(rng),
-      spa: randomIV(rng), spd: randomIV(rng), spe: randomIV(rng),
+      hp: randomIV(rng),
+      atk: randomIV(rng),
+      def: randomIV(rng),
+      spa: randomIV(rng),
+      spd: randomIV(rng),
+      spe: randomIV(rng),
     };
   }
   const targetIndex = HP_TYPES.indexOf(member.hpType as typeof HP_TYPES[number]);
@@ -47,8 +65,12 @@ export function randomizeIVs(member: PhfMember, rng: () => number): StatsTable {
   const combo = combos[Math.floor(rng() * combos.length)];
   // combo bit order: bit0=HP, 1=Atk, 2=Def, 3=Spe, 4=SpA, 5=SpD
   const parity = {
-    hp: (combo >> 0) & 1, atk: (combo >> 1) & 1, def: (combo >> 2) & 1,
-    spe: (combo >> 3) & 1, spa: (combo >> 4) & 1, spd: (combo >> 5) & 1,
+    hp: (combo >> 0) & 1,
+    atk: (combo >> 1) & 1,
+    def: (combo >> 2) & 1,
+    spe: (combo >> 3) & 1,
+    spa: (combo >> 4) & 1,
+    spd: (combo >> 5) & 1,
   } as const;
   return {
     hp: randomIV(rng, parity.hp as 0 | 1),
@@ -61,7 +83,11 @@ export function randomizeIVs(member: PhfMember, rng: () => number): StatsTable {
 }
 
 /** Assign seeded IVs to every set in a team. Mutates and returns the sets. */
-export function assignTeamIVs(sets: PokemonSet[], members: PhfMember[], seed: number): PokemonSet[] {
+export function assignTeamIVs(
+  sets: PokemonSet[],
+  members: PhfMember[],
+  seed: number,
+): PokemonSet[] {
   // One RNG stream for the whole team so the seed fully determines the result.
   const rng = mulberry32(seed);
   sets.forEach((set, i) => {

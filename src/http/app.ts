@@ -18,15 +18,24 @@ import {
   SpritePackUnavailableError,
   SpriteService,
 } from "../sprites/service.ts";
+import { BattleHub } from "../ws/hub.ts";
+import { registerBattleWebSocketRoute, type WebSocketUpgrader } from "../ws/routes.ts";
 
 export interface AppOptions {
   /** Directory of the built sprite pack. Defaults to $SPRITE_PACK_DIR or `assets/sprites/gen5`. */
   spritePackDir?: string;
+  battleHub?: BattleHub;
+  gatewayToken?: string;
+  upgradeWebSocket?: WebSocketUpgrader;
 }
 
 /** Build the read-only Dex + sprite HTTP app. Stateless; safe to call once per process or per test. */
 export function createApp(opts: AppOptions = {}): Hono {
   const app = new Hono();
+
+  if (opts.battleHub && opts.gatewayToken) {
+    registerBattleWebSocketRoute(app, opts.battleHub, opts.gatewayToken, opts.upgradeWebSocket);
+  }
 
   app.get("/healthz", (c) => c.json({ ok: true }));
 

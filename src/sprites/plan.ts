@@ -44,7 +44,8 @@ export function planSpritePack(
       }
     }
 
-    const has = (s: string) => files.has(`${entry.sid}${s}.gif`) || files.has(`${entry.sid}${s}.png`);
+    const has = (s: string) =>
+      files.has(`${entry.sid}${s}.gif`) || files.has(`${entry.sid}${s}.png`);
     sprites[id] = { back: has("-b"), shiny: has("-s"), female: has("-f") };
   }
 

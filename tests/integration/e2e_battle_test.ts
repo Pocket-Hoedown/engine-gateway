@@ -7,10 +7,22 @@ const TEAM_A: PhfTeam = {
   name: "Normal Spam",
   gen: 5,
   members: [
-    { species: "Tauros", ability: "Intimidate", item: "Leftovers", nature: "Adamant",
-      moves: ["Return", "Earthquake", "Rock Slide", "Pursuit"], evs: { atk: 252, spe: 252, spd: 4 } },
-    { species: "Starmie", ability: "Natural Cure", item: "Leftovers", nature: "Timid",
-      moves: ["Surf", "Thunderbolt", "Ice Beam", "Recover"], evs: { spa: 252, spe: 252, hp: 4 } },
+    {
+      species: "Tauros",
+      ability: "Intimidate",
+      item: "Leftovers",
+      nature: "Adamant",
+      moves: ["Return", "Earthquake", "Rock Slide", "Pursuit"],
+      evs: { atk: 252, spe: 252, spd: 4 },
+    },
+    {
+      species: "Starmie",
+      ability: "Natural Cure",
+      item: "Leftovers",
+      nature: "Timid",
+      moves: ["Surf", "Thunderbolt", "Ice Beam", "Recover"],
+      evs: { spa: 252, spe: 252, hp: 4 },
+    },
   ],
 };
 
@@ -19,10 +31,23 @@ const TEAM_B: PhfTeam = {
   name: "Fat Balance",
   gen: 5,
   members: [
-    { species: "Snorlax", ability: "Thick Fat", item: "Leftovers", nature: "Careful",
-      moves: ["Body Slam", "Crunch", "Earthquake", "Rest"], evs: { hp: 252, spd: 252, def: 4 } },
-    { species: "Jolteon", ability: "Volt Absorb", item: "Leftovers", nature: "Timid", hpType: "Ice",
-      moves: ["Thunderbolt", "Shadow Ball", "Hidden Power", "Baton Pass"], evs: { spa: 252, spe: 252, hp: 4 } },
+    {
+      species: "Snorlax",
+      ability: "Thick Fat",
+      item: "Leftovers",
+      nature: "Careful",
+      moves: ["Body Slam", "Crunch", "Earthquake", "Rest"],
+      evs: { hp: 252, spd: 252, def: 4 },
+    },
+    {
+      species: "Jolteon",
+      ability: "Volt Absorb",
+      item: "Leftovers",
+      nature: "Timid",
+      hpType: "Ice",
+      moves: ["Thunderbolt", "Shadow Ball", "Hidden Power", "Baton Pass"],
+      evs: { spa: 252, spe: 252, hp: 4 },
+    },
   ],
 };
 

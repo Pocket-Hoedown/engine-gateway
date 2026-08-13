@@ -22,17 +22,32 @@ Deno.test("a Gen-5 battle runs headless to a winner", async () => {
 });
 
 Deno.test("same seed produces an identical transcript (determinism)", async () => {
-  const a = await runHeadlessBattle({ formatid: "gen5customgame", packedTeams: [TEAM_A, TEAM_B], seed: SEED });
-  const b = await runHeadlessBattle({ formatid: "gen5customgame", packedTeams: [TEAM_A, TEAM_B], seed: SEED });
+  const a = await runHeadlessBattle({
+    formatid: "gen5customgame",
+    packedTeams: [TEAM_A, TEAM_B],
+    seed: SEED,
+  });
+  const b = await runHeadlessBattle({
+    formatid: "gen5customgame",
+    packedTeams: [TEAM_A, TEAM_B],
+    seed: SEED,
+  });
   assertEquals(a.log, b.log);
   assertEquals(a.winner, b.winner);
 });
 
 Deno.test("transcript excludes the sim's wall-clock timestamps (deterministic replay)", async () => {
-  const result = await runHeadlessBattle({ formatid: "gen5customgame", packedTeams: [TEAM_A, TEAM_B], seed: SEED });
+  const result = await runHeadlessBattle({
+    formatid: "gen5customgame",
+    packedTeams: [TEAM_A, TEAM_B],
+    seed: SEED,
+  });
   // The sim emits `|t:|<unixtime>` at the start of every turn. Those lines are
   // wall-clock, not seed-derived, so two same-seed runs that straddle a one-second
   // boundary diverge — the real cause of the determinism flake. They must never
   // appear in the replay transcript.
-  assert(!result.log.some((l) => l.startsWith("|t:|")), "transcript must not contain wall-clock |t:| lines");
+  assert(
+    !result.log.some((l) => l.startsWith("|t:|")),
+    "transcript must not contain wall-clock |t:| lines",
+  );
 });

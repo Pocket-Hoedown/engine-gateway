@@ -1,20 +1,7 @@
 import { gen } from "./gen.ts";
-import {
-  toAbilityDTO,
-  toItemDTO,
-  toMoveDTO,
-  toSpeciesDTO,
-  toTypeChartDTO,
-} from "./map.ts";
+import { toAbilityDTO, toItemDTO, toMoveDTO, toSpeciesDTO, toTypeChartDTO } from "./map.ts";
 import { legalMovepool } from "./learnset.ts";
-import type {
-  AbilityDTO,
-  ItemDTO,
-  LearnsetDTO,
-  MoveDTO,
-  SpeciesDTO,
-  TypeChartDTO,
-} from "./dto.ts";
+import type { AbilityDTO, ItemDTO, LearnsetDTO, MoveDTO, SpeciesDTO, TypeChartDTO } from "./dto.ts";
 
 /** Thrown when a requested dex id does not exist in Gen 5. */
 export class DexNotFoundError extends Error {

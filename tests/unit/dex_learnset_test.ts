@@ -13,7 +13,10 @@ Deno.test("legalMovepool is a superset of the species' own learnset (inheritance
 Deno.test("legalMovepool returns sorted, unique ids", async () => {
   const full = await legalMovepool("charizard");
   const sortedUnique = [...new Set(full)].sort();
-  assert(full.length === sortedUnique.length && full.every((m: string, i: number) => m === sortedUnique[i]));
+  assert(
+    full.length === sortedUnique.length &&
+      full.every((m: string, i: number) => m === sortedUnique[i]),
+  );
 });
 
 Deno.test("legalMovepool handles a species with no pre-evolution", async () => {

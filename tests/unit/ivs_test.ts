@@ -10,7 +10,13 @@ Deno.test("mulberry32 is deterministic for a given seed", () => {
 });
 
 Deno.test("randomizeIVs honors a requested Hidden Power type", () => {
-  const member: PhfMember = { species: "Jolteon", ability: "Volt Absorb", nature: "Timid", moves: ["Hidden Power"], hpType: "Ice" };
+  const member: PhfMember = {
+    species: "Jolteon",
+    ability: "Volt Absorb",
+    nature: "Timid",
+    moves: ["Hidden Power"],
+    hpType: "Ice",
+  };
   for (let s = 0; s < 25; s++) {
     const ivs = randomizeIVs(member, mulberry32(s));
     assertEquals(computeHpType(ivs), "Ice", `seed ${s} produced wrong HP type`);
@@ -21,7 +27,12 @@ Deno.test("randomizeIVs honors a requested Hidden Power type", () => {
 });
 
 Deno.test("randomizeIVs with no hpType yields in-range IVs", () => {
-  const member: PhfMember = { species: "Tauros", ability: "Intimidate", nature: "Adamant", moves: ["Return"] };
+  const member: PhfMember = {
+    species: "Tauros",
+    ability: "Intimidate",
+    nature: "Adamant",
+    moves: ["Return"],
+  };
   for (let s = 0; s < 25; s++) {
     const ivs = randomizeIVs(member, mulberry32(s));
     for (const stat of ["hp", "atk", "def", "spa", "spd", "spe"] as const) {
@@ -31,7 +42,12 @@ Deno.test("randomizeIVs with no hpType yields in-range IVs", () => {
 });
 
 Deno.test("assignTeamIVs is seed-deterministic and sets ivs on every set", () => {
-  const member: PhfMember = { species: "Tauros", ability: "Intimidate", nature: "Adamant", moves: ["Return"] };
+  const member: PhfMember = {
+    species: "Tauros",
+    ability: "Intimidate",
+    nature: "Adamant",
+    moves: ["Return"],
+  };
   const team = { schema: "phf-team/1" as const, name: "T", gen: 5 as const, members: [member] };
   const a = assignTeamIVs(toPokemonSets(team), team.members, 99);
   const b = assignTeamIVs(toPokemonSets(team), team.members, 99);

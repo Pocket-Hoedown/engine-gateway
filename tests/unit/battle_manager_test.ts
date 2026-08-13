@@ -16,7 +16,12 @@ const okControllers = (): ControllerSpec[] => [
   { id: "b", side: 1, team: mon("Pidgey") },
 ];
 
-const base = () => ({ mode: StandardMode, format: "single" as const, controllers: okControllers(), seed: 1 });
+const base = () => ({
+  mode: StandardMode,
+  format: "single" as const,
+  controllers: okControllers(),
+  seed: 1,
+});
 
 Deno.test("create → get → end lifecycle", () => {
   const m = new BattleManager();

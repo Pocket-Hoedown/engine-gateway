@@ -30,8 +30,20 @@ export interface MoveDTO {
   desc: string;
 }
 
-export interface AbilityDTO { id: string; num: number; name: string; shortDesc: string; desc: string }
-export interface ItemDTO { id: string; num: number; name: string; shortDesc: string; desc: string }
+export interface AbilityDTO {
+  id: string;
+  num: number;
+  name: string;
+  shortDesc: string;
+  desc: string;
+}
+export interface ItemDTO {
+  id: string;
+  num: number;
+  name: string;
+  shortDesc: string;
+  desc: string;
+}
 
 export interface TypeChartDTO {
   types: string[];
@@ -39,6 +51,11 @@ export interface TypeChartDTO {
   effectiveness: Record<string, Record<string, 0 | 0.5 | 1 | 2>>;
 }
 
-export interface LearnsetDTO { id: string; moves: string[] }
+export interface LearnsetDTO {
+  id: string;
+  moves: string[];
+}
 
-export interface DexError { error: { code: "not_found"; message: string } }
+export interface DexError {
+  error: { code: "not_found"; message: string };
+}

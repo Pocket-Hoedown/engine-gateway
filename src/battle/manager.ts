@@ -20,9 +20,13 @@ function validate(req: CreateBattleRequest): void {
     throw new BattleRequestError(`expected exactly 2 controllers, got ${req.controllers.length}`);
   }
   const sides = new Set(req.controllers.map((c) => c.side));
-  if (sides.size !== 2) throw new BattleRequestError("expected one controller on each side (0 and 1)");
+  if (sides.size !== 2) {
+    throw new BattleRequestError("expected one controller on each side (0 and 1)");
+  }
   for (const c of req.controllers) {
-    if (!c.team.members.length) throw new BattleRequestError(`controller '${c.id}' has an empty team`);
+    if (!c.team.members.length) {
+      throw new BattleRequestError(`controller '${c.id}' has an empty team`);
+    }
   }
 }
 
