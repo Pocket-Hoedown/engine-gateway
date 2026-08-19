@@ -1,4 +1,12 @@
 import type { GameMode } from "./types.ts";
+import {
+  abilityClause,
+  evasionClause,
+  itemClause,
+  ohkoClause,
+  speciesClause,
+  teamSizeClause,
+} from "../teams/clauses.ts";
 
 const FORMAT_IDS: Record<"single" | "double" | "triple", string> = {
   single: "gen5customgame",
@@ -6,15 +14,24 @@ const FORMAT_IDS: Record<"single" | "double" | "triple", string> = {
   triple: "gen5triplescustomgame",
 };
 
-/** The baseline built-in mode: Gen-5 Custom Game from pre-built teams.
- *  Clause primitives and team validation arrive in Phase 4. */
+/** The baseline built-in mode: Gen-5 Custom Game from pre-built teams. */
 export const StandardMode: GameMode = {
   id: "standard",
   name: "Standard",
+  description:
+    "Gen-5 custom game with the standard clause set (Species/Item/Ability/OHKO/Evasion).",
   // 'multi' is part of the intended v1 surface but is NOT yet compilable to a
   // sim format — multi battles need a gameType:'multi' override (Phase 3), not a
   // custom-game id. compileFormatId throws for it until then.
   battleFormats: ["single", "double", "triple", "multi"],
+  clauses: [
+    speciesClause,
+    itemClause,
+    abilityClause,
+    ohkoClause,
+    evasionClause,
+    teamSizeClause(1, 6),
+  ],
   compileFormatId(format) {
     if (format === "multi") {
       throw new Error(

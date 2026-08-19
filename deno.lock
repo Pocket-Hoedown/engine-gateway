@@ -13,7 +13,8 @@
     "npm:@pkmn/dex@~0.10.11": "0.10.11",
     "npm:@pkmn/protocol@~0.7.3": "0.7.3",
     "npm:@pkmn/sim@~0.10.11": "0.10.11",
-    "npm:ws@8.18.3": "8.18.3"
+    "npm:ws@8.18.3": "8.18.3",
+    "npm:zod@^4.4.3": "4.4.3"
   },
   "jsr": {
     "@hono/hono@4.12.27": {
@@ -96,6 +97,9 @@
     },
     "ws@8.18.3": {
       "integrity": "sha512-PEIGCY5tSlUt50cqyMXfCzX+oOPqN0vuGqWzbcJ2xvnkzkq46oOpz7dQaTDBdfICb4N14+GARUDw2XV2N4tvzg=="
+    },
+    "zod@4.4.3": {
+      "integrity": "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="
     }
   },
   "workspace": {
@@ -108,7 +112,8 @@
       "npm:@pkmn/data@~0.10.11",
       "npm:@pkmn/dex@~0.10.11",
       "npm:@pkmn/protocol@~0.7.3",
-      "npm:@pkmn/sim@~0.10.11"
+      "npm:@pkmn/sim@~0.10.11",
+      "npm:zod@^4.4.3"
     ]
   }
 }

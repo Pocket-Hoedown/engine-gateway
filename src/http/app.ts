@@ -1,4 +1,5 @@
 import { Hono } from "@hono/hono";
+import { z } from "zod";
 import {
   DexNotFoundError,
   getAbility,
@@ -20,6 +21,11 @@ import {
 } from "../sprites/service.ts";
 import { BattleHub } from "../ws/hub.ts";
 import { registerBattleWebSocketRoute, type WebSocketUpgrader } from "../ws/routes.ts";
+import { ModeNotFoundError, ModeSchemaNotFoundError, registerModeRoutes } from "./modes.ts";
+import { registerTeamsRoutes } from "./teams.ts";
+import { registerBuiltinModes } from "../modes/builtin.ts";
+
+registerBuiltinModes();
 
 export interface AppOptions {
   /** Directory of the built sprite pack. Defaults to $SPRITE_PACK_DIR or `assets/sprites/gen5`. */
@@ -54,17 +60,29 @@ export function createApp(opts: AppOptions = {}): Hono {
 
   app.get("/dex/types", (c) => c.json(getTypeChart()));
 
+  registerModeRoutes(app);
+  registerTeamsRoutes(app);
+
   const sprites = new SpriteService(
     opts.spritePackDir ?? Deno.env.get("SPRITE_PACK_DIR") ?? "assets/sprites/gen5",
   );
   registerSpriteRoutes(app, sprites);
 
   app.onError((err, c) => {
-    if (err instanceof DexNotFoundError || err instanceof SpriteNotFoundError) {
+    if (
+      err instanceof DexNotFoundError || err instanceof SpriteNotFoundError ||
+      err instanceof ModeNotFoundError || err instanceof ModeSchemaNotFoundError
+    ) {
       return c.json({ error: { code: "not_found", message: err.message } }, 404);
     }
     if (err instanceof SpritePackUnavailableError) {
       return c.json({ error: { code: "sprites_unavailable", message: err.message } }, 503);
+    }
+    if (err instanceof z.ZodError) {
+      return c.json(
+        { error: { code: "invalid_config", message: z.prettifyError(err), issues: err.issues } },
+        400,
+      );
     }
     throw err; // unexpected → Hono's default 500
   });
