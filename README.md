@@ -1,7 +1,8 @@
 # Engine Gateway (①)
 
 Headless Deno/TypeScript service that owns all Pokémon-domain knowledge for Pocket Hoedown — the
-sole consumer of `@pkmn/sim`. Serves a read-only Gen-5 Dex API and Gen-5 sprite assets over HTTP.
+sole consumer of `@pkmn/sim`. Serves a read-only Gen-5 Dex API, Gen-5 sprite assets, GameModes,
+team validation/conversion over HTTP, and multiplexed binary battle orchestration over WebSocket.
 
 ## Prerequisites
 
@@ -15,7 +16,13 @@ GATEWAY_TOKEN=replace-me ~/.deno/bin/deno task serve
 ```
 
 `GATEWAY_TOKEN` is required. It authenticates the multiplexed binary Protobuf WebSocket endpoint at
-`GET /ws/battles`; all existing REST routes remain public. Do not log or commit the token.
+`GET /ws/battles`; all REST routes remain public. Do not log or commit the token.
+
+## REST API Surfaces
+
+- **Dex & Sprites:** `GET /healthz`, `GET /dex/species`, `GET /dex/species/:id`, `GET /dex/moves/:id`, `GET /dex/types`, `GET /sprites/gen5/*`
+- **Modes:** `GET /modes`, `GET /modes/:id`, `GET /modes/:id/schema`, `POST /modes/:id/derive-pool`
+- **Teams:** `POST /teams/validate`, `POST /teams/convert`
 
 ## Test
 
