@@ -159,7 +159,11 @@ export class BattleSession {
     }
     for (const player of ["p1", "p2"] as const) this.closePlayer(player, this.result ?? null);
     this.closeSpectator(this.result ?? null);
-    void this.battleStream.destroy();
+    try {
+      void this.battleStream.destroy();
+    } catch {
+      // Ignored if battle stream has already naturally completed/closed
+    }
   }
 
   private queueForPlayer(player: SimPlayer): PushQueue<BattleEvent> {
