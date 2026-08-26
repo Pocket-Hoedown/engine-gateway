@@ -34,8 +34,17 @@ export interface RequestDTO {
   team: RequestPokemon[];
 }
 
+export interface BattleFrameDomain {
+  turn: number;
+  phase: BattleState["phase"];
+  protocolLines: string[];
+  events: SemanticEvent[];
+  checkpoint: BattleState;
+}
+
 export type BattleEvent =
   | { kind: "request"; request: RequestDTO }
+  | { kind: "frame"; frame: BattleFrameDomain }
   | { kind: "event"; events: SemanticEvent[] }
   | { kind: "state"; state: BattleState }
   | { kind: "error"; message: string }

@@ -1,9 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import type { Ref, SemanticEvent } from "../battle/events.ts";
-import type { BattleEvent } from "../battle/types.ts";
+import type { BattleEvent, BattleFrameDomain } from "../battle/types.ts";
 import {
   Audience,
   BattleErrorSchema,
+  BattleFrameSchema,
+  BattlePhase,
   BattleResultSchema,
   BattleStreamEventSchema,
   EffectivenessKind,
@@ -242,6 +244,20 @@ export function encodeSemanticEvents(events: SemanticEvent[]) {
   return create(SemanticEventBatchSchema, { events: events.map(encodeSemanticEvent) });
 }
 
+export function encodeBattleFrame(frame: BattleFrameDomain) {
+  return create(BattleFrameSchema, {
+    turn: requireUint32(frame.turn, "frame.turn"),
+    phase: frame.phase === "teampreview"
+      ? BattlePhase.TEAM_PREVIEW
+      : frame.phase === "battle"
+      ? BattlePhase.BATTLE
+      : BattlePhase.ENDED,
+    protocolLines: [...frame.protocolLines],
+    events: frame.events.map(encodeSemanticEvent),
+    checkpoint: encodeState(frame.checkpoint),
+  });
+}
+
 export type BattleAudience =
   | { audience: "controller"; controllerId: string; side: 0 | 1 }
   | { audience: "spectator" };
@@ -272,10 +288,21 @@ export function encodeBattleEvent(
       );
     }
   }
+  if (event.kind === "frame") {
+    const expectedViewer = controller ? destination.side : null;
+    if (event.frame.checkpoint.viewer !== expectedViewer) {
+      throw new WireAdapterError(
+        FailureCode.INTERNAL,
+        "frame checkpoint viewer does not match stream audience",
+      );
+    }
+  }
   const payload = (() => {
     switch (event.kind) {
       case "request":
         return { case: "request" as const, value: encodeRequest(event.request) };
+      case "frame":
+        return { case: "frame" as const, value: encodeBattleFrame(event.frame) };
       case "event":
         return { case: "semanticEvents" as const, value: encodeSemanticEvents(event.events) };
       case "state":

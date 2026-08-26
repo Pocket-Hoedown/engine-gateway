@@ -10,6 +10,7 @@ import type { BattleState } from "./state.ts";
 import { StateTracker } from "./tracker.ts";
 import {
   type BattleEvent,
+  type BattleFrameDomain,
   BattleRequestError,
   type CreateBattleRequest,
   type Replay,
@@ -45,6 +46,7 @@ export class BattleSession {
   private spectatorSubscribed = false;
   private spectatorClosed = false;
   private latestSpectatorState: BattleState | undefined;
+  private latestSpectatorFrame: BattleFrameDomain | undefined;
   private done = false;
   private result: string | null | undefined;
   private resolveEnded!: (o: { winner: string | null }) => void;
@@ -134,8 +136,19 @@ export class BattleSession {
   private subscribeSpectator(): void {
     if (this.spectatorSubscribed) return;
     this.spectatorSubscribed = true;
-    if (this.latestSpectatorState) {
-      this.spectatorQueue.push({ kind: "state", state: this.latestSpectatorState });
+    if (this.latestSpectatorFrame) {
+      this.spectatorQueue.push({ kind: "frame", frame: this.latestSpectatorFrame });
+    } else if (this.latestSpectatorState) {
+      this.spectatorQueue.push({
+        kind: "frame",
+        frame: {
+          turn: this.latestSpectatorState.turn,
+          phase: this.latestSpectatorState.phase,
+          protocolLines: [],
+          events: [],
+          checkpoint: this.latestSpectatorState,
+        },
+      });
     }
     if (this.done) this.closeSpectator(this.result ?? null);
   }
@@ -148,13 +161,29 @@ export class BattleSession {
     if (!this.done) {
       for (const player of ["p1", "p2"] as const) {
         if (!this.closedPlayers.has(player)) {
+          const endState = (this.trackers.get(player) as StateTracker).end();
           this.queueForPlayer(player).push({
-            kind: "state",
-            state: (this.trackers.get(player) as StateTracker).end(),
+            kind: "frame",
+            frame: {
+              turn: endState.turn,
+              phase: endState.phase,
+              protocolLines: [],
+              events: [],
+              checkpoint: endState,
+            },
           });
         }
       }
-      if (!this.spectatorClosed) this.pushSpectatorState(this.spectatorTracker.end());
+      if (!this.spectatorClosed) {
+        const endState = this.spectatorTracker.end();
+        this.pushSpectatorFrame({
+          turn: endState.turn,
+          phase: endState.phase,
+          protocolLines: [],
+          events: [],
+          checkpoint: endState,
+        });
+      }
       this.finishResult(null);
     }
     for (const player of ["p1", "p2"] as const) this.closePlayer(player, this.result ?? null);
@@ -174,18 +203,22 @@ export class BattleSession {
     this.spectatorRequests.set(player, line);
     this.spectatorReadyPlayers.add(player);
     if (this.spectatorInitialized) {
-      this.pushSpectatorState(this.spectatorTracker.ingest([line]).state);
+      const result = this.spectatorTracker.ingest([line]);
+      this.pushSpectatorFrame({
+        turn: result.state.turn,
+        phase: result.state.phase,
+        protocolLines: [line],
+        events: result.events,
+        checkpoint: result.state,
+      });
     }
     if (this.spectatorReadyPlayers.size === 2) this.resolveSpectatorReady();
   }
 
-  private pushSpectatorState(state: BattleState): void {
-    this.latestSpectatorState = state;
-    if (this.spectatorSubscribed) this.spectatorQueue.push({ kind: "state", state });
-  }
-
-  private pushSpectatorEvents(events: Extract<BattleEvent, { kind: "event" }>): void {
-    if (this.spectatorSubscribed) this.spectatorQueue.push(events);
+  private pushSpectatorFrame(frame: BattleFrameDomain): void {
+    this.latestSpectatorFrame = frame;
+    this.latestSpectatorState = frame.checkpoint;
+    if (this.spectatorSubscribed) this.spectatorQueue.push({ kind: "frame", frame });
   }
 
   private pushNormalized(
@@ -195,8 +228,16 @@ export class BattleSession {
   ): void {
     if (!lines.length) return;
     const result = tracker.ingest(lines);
-    if (result.events.length) queue.push({ kind: "event", events: result.events });
-    queue.push({ kind: "state", state: result.state });
+    queue.push({
+      kind: "frame",
+      frame: {
+        turn: result.state.turn,
+        phase: result.state.phase,
+        protocolLines: lines,
+        events: result.events,
+        checkpoint: result.state,
+      },
+    });
   }
 
   private async pumpSide(player: SimPlayer): Promise<void> {
@@ -231,7 +272,17 @@ export class BattleSession {
     }
     if (!this.closedPlayers.has(player)) {
       const { winner } = await this.ended;
-      queue.push({ kind: "state", state: tracker.end() });
+      const endState = tracker.end();
+      queue.push({
+        kind: "frame",
+        frame: {
+          turn: endState.turn,
+          phase: endState.phase,
+          protocolLines: [],
+          events: [],
+          checkpoint: endState,
+        },
+      });
       this.closePlayer(player, winner);
     }
   }
@@ -258,15 +309,27 @@ export class BattleSession {
         }
         this.spectatorInitialized = true;
       }
-      if (result.events.length) this.pushSpectatorEvents({ kind: "event", events: result.events });
-      this.pushSpectatorState(state);
+      this.pushSpectatorFrame({
+        turn: state.turn,
+        phase: state.phase,
+        protocolLines: lines,
+        events: result.events,
+        checkpoint: state,
+      });
       if (terminal !== undefined) {
         this.finishResult(terminal);
         return;
       }
     }
     if (!this.done) {
-      this.pushSpectatorState(this.spectatorTracker.end());
+      const endState = this.spectatorTracker.end();
+      this.pushSpectatorFrame({
+        turn: endState.turn,
+        phase: endState.phase,
+        protocolLines: [],
+        events: [],
+        checkpoint: endState,
+      });
       this.finishResult(null);
     }
   }

@@ -281,6 +281,19 @@ Deno.test("encodeBattleEvent maps every BattleEvent and enforces audience consis
   assertEquals(request.controllerId, "alice");
   assertEquals(request.payload.case, "request");
   assertEquals(
+    encodeBattleEvent("b1", { audience: "spectator" }, {
+      kind: "frame",
+      frame: {
+        turn: 1,
+        phase: "battle",
+        protocolLines: ["|move|p1a: Pikachu|Thunderbolt|p2a: Rattata"],
+        events: [],
+        checkpoint: state(null),
+      },
+    }).payload.case,
+    "frame",
+  );
+  assertEquals(
     encodeBattleEvent("b1", { audience: "spectator" }, { kind: "event", events: [] }).payload.case,
     "semanticEvents",
   );

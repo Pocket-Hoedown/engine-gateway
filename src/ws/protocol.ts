@@ -1,6 +1,6 @@
 export const PROTOCOL_VERSION = "0.1.0";
-export const PROTOCOL_GIT_COMMIT = "d079f7c88174a5294a0f5b8ea9899118837ff596";
+export const PROTOCOL_GIT_COMMIT = "0b0e781ae157263e5ae6300b1ef1aa102afb880c";
 export const PROTOCOL_BINDINGS_SHA256 =
-  "8894fd09a4c50cc2d8fdd633a3deb08e15c303709e3d5c51acdbb1379f01c39d";
+  "45fd6e8194a77121b03af1cc21f584f43d87bf72807e3dd3b06d0bd5f34affcd";
 
 export * from "./gen/pocket_hoedown/v1/battle_pb.ts";

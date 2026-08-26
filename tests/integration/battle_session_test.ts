@@ -40,8 +40,8 @@ function assertTerminalOrdering(events: BattleEvent[]): void {
   const endedIndex = events.findLastIndex((event) => event.kind === "ended");
   assert(endedIndex > 0);
   const previous = events[endedIndex - 1];
-  assertEquals(previous.kind, "state");
-  if (previous.kind === "state") assertEquals(previous.state.phase, "ended");
+  assertEquals(previous.kind, "frame");
+  if (previous.kind === "frame") assertEquals(previous.frame.checkpoint.phase, "ended");
 }
 
 function singles(): ControllerSpec[] {
@@ -70,21 +70,20 @@ Deno.test("single battle emits normalized state and events through terminal orde
   assert(s.replay().inputLog.length > 1);
 
   for (const events of [aEvents, bEvents, spectatorEvents]) {
-    assert(events.some((event) => event.kind === "state"));
-    assert(events.some((event) => event.kind === "event"));
-    assert(events.every((event) => !("lines" in event)));
+    assert(events.some((event) => event.kind === "frame"));
     assertTerminalOrdering(events);
   }
 
-  const states = aEvents.filter((event) => event.kind === "state");
-  assert(states.some((event) => event.state.turn > 0));
-  const semantics = aEvents.flatMap((event) => event.kind === "event" ? event.events : []);
+  const frames = aEvents.flatMap((event) => event.kind === "frame" ? [event.frame] : []);
+  assert(frames.some((frame) => frame.checkpoint.turn > 0));
+  assert(frames.some((frame) => frame.protocolLines.length > 0));
+  const semantics = frames.flatMap((frame) => frame.events);
   assert(semantics.some((event) => event.type === "move"));
   assert(semantics.some((event) => event.type === "damage"));
   assert(semantics.some((event) => event.type === "faint"));
 
   const spectatorSemantics = spectatorEvents.flatMap((event) =>
-    event.kind === "event" ? event.events : []
+    event.kind === "frame" ? event.frame.events : []
   );
   const faintDamage = spectatorSemantics.find((event) => event.type === "damage" && event.hp === 0);
   assertExists(faintDamage);
@@ -93,28 +92,23 @@ Deno.test("single battle emits normalized state and events through terminal orde
     assert(faintDamage.maxhp > 100);
   }
 
-  const moveIndex = spectatorEvents.findIndex((event) =>
-    event.kind === "event" &&
-    event.events.some((semantic) => semantic.type === "move" && semantic.source.side === 0)
+  const moveFrame = spectatorEvents.find((event) =>
+    event.kind === "frame" &&
+    event.frame.events.some((semantic) => semantic.type === "move" && semantic.source.side === 0)
   );
-  assert(moveIndex >= 0);
-  const nextEventIndex = spectatorEvents.findIndex((event, index) =>
-    index > moveIndex && event.kind === "event"
-  );
-  const corrected = spectatorEvents.slice(moveIndex + 1, nextEventIndex).filter((event) =>
-    event.kind === "state"
-  ).at(-1);
-  assertExists(corrected);
-  if (corrected.kind === "state") {
+  assertExists(moveFrame);
+  const subsequentFrames = spectatorEvents.slice(
+    spectatorEvents.indexOf(moveFrame!),
+  ).flatMap((event) => event.kind === "frame" ? [event.frame] : []);
+  const frameWithDecrementedPp = subsequentFrames.find((frame) => {
     const pikachu = [
-      ...corrected.state.sides[0].active.filter((pokemon) => pokemon !== null),
-      ...corrected.state.sides[0].team,
+      ...frame.checkpoint.sides[0].active.filter((pokemon) => pokemon !== null),
+      ...frame.checkpoint.sides[0].team,
     ].find((pokemon) => pokemon.speciesForme === "Pikachu");
-    assertExists(pikachu);
-    const thunderbolt = pikachu.moves.find((move) => move.id === "thunderbolt");
-    assertExists(thunderbolt);
-    assert((thunderbolt.pp ?? 0) < (thunderbolt.maxpp ?? 0));
-  }
+    const tb = pikachu?.moves.find((move) => move.id === "thunderbolt");
+    return tb && (tb.pp ?? 0) < (tb.maxpp ?? 0);
+  });
+  assertExists(frameWithDecrementedPp);
 });
 
 Deno.test("hidden-info keeps side A exact and side B percentage-scoped", async () => {
@@ -134,7 +128,7 @@ Deno.test("hidden-info keeps side A exact and side B percentage-scoped", async (
     }
   }
 
-  const states = aEvents.filter((event) => event.kind === "state").map((event) => event.state);
+  const states = aEvents.flatMap((event) => event.kind === "frame" ? [event.frame.checkpoint] : []);
   assert(states.length > 0);
   for (const state of states) {
     const foes = [
@@ -173,10 +167,10 @@ Deno.test("spectator starts with exact private state and receives no requests", 
   ]);
   await s.ended;
   assertEquals(spectatorEvents.some((event) => event.kind === "request"), false);
-  const firstState = spectatorEvents.find((event) => event.kind === "state");
-  assertExists(firstState);
-  if (firstState.kind !== "state") throw new Error("unreachable");
-  for (const side of firstState.state.sides) {
+  const firstFrame = spectatorEvents.find((event) => event.kind === "frame");
+  assertExists(firstFrame);
+  if (firstFrame.kind !== "frame") throw new Error("unreachable");
+  for (const side of firstFrame.frame.checkpoint.sides) {
     const pokemon = [...side.active.filter((entry) => entry !== null), ...side.team];
     assert(pokemon.length > 0);
     for (const entry of pokemon) assertEquals(entry.hpIsPercent, false);
@@ -196,7 +190,7 @@ Deno.test("late spectator receives only the latest terminal snapshot", async () 
   await s.ended;
   const events: BattleEvent[] = [];
   await collectSpectator(s, events);
-  assertEquals(events.map((event) => event.kind), ["state", "ended"]);
+  assertEquals(events.map((event) => event.kind), ["frame", "ended"]);
   assertTerminalOrdering(events);
 });
 
@@ -233,13 +227,13 @@ Deno.test("doubles: a two-active battle drives to completion", async () => {
   const { winner } = await s.ended;
   assert(winner === "P1" || winner === "P2");
   const battleState = aEvents.find((event) =>
-    event.kind === "state" && event.state.phase === "battle" &&
-    event.state.sides[0].active.every((pokemon) => pokemon !== null)
+    event.kind === "frame" && event.frame.checkpoint.phase === "battle" &&
+    event.frame.checkpoint.sides[0].active.every((pokemon) => pokemon !== null)
   );
   assertExists(battleState);
-  if (battleState.kind === "state") {
-    assertEquals(battleState.state.sides[0].active.length, 2);
-    assertEquals(battleState.state.sides[1].active.length, 2);
+  if (battleState.kind === "frame") {
+    assertEquals(battleState.frame.checkpoint.sides[0].active.length, 2);
+    assertEquals(battleState.frame.checkpoint.sides[1].active.length, 2);
   }
 });
 
@@ -301,14 +295,14 @@ Deno.test("immediate destroy retains format and team state before ended", async 
   assertTerminalOrdering(bEvents);
   assertTerminalOrdering(spectatorEvents);
   for (const events of [aEvents, bEvents, spectatorEvents]) {
-    const state = events.find((event) => event.kind === "state");
-    assertExists(state);
-    if (state.kind === "state") {
-      assertEquals(state.state.gameType, "doubles");
-      assertEquals(state.state.sides[0].active.length, 2);
-      assertEquals(state.state.sides[1].active.length, 2);
-      assertEquals(state.state.sides[0].team.length, 2);
-      assertEquals(state.state.sides[1].team.length, 2);
+    const frame = events.find((event) => event.kind === "frame");
+    assertExists(frame);
+    if (frame.kind === "frame") {
+      assertEquals(frame.frame.checkpoint.gameType, "doubles");
+      assertEquals(frame.frame.checkpoint.sides[0].active.length, 2);
+      assertEquals(frame.frame.checkpoint.sides[1].active.length, 2);
+      assertEquals(frame.frame.checkpoint.sides[0].team.length, 2);
+      assertEquals(frame.frame.checkpoint.sides[1].team.length, 2);
     }
   }
 });
