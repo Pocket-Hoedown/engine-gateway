@@ -130,7 +130,9 @@ class FakeSession {
   readonly seed: number;
   readonly queues = new Map<string, PushQueue<BattleEvent>>();
   readonly spectatorQueue = new PushQueue<BattleEvent>();
-  readonly choices: Array<{ controller: string; choices: string[]; rqid?: number }> = [];
+  readonly choices: Array<
+    { controller: string; choices: string[]; rqid?: number; choiceId?: string }
+  > = [];
   destroyed = false;
 
   constructor(id: string, seed: number) {
@@ -148,8 +150,8 @@ class FakeSession {
     return this.spectatorQueue;
   }
 
-  submitChoice(controller: string, choices: string[], rqid?: number): void {
-    this.choices.push({ controller, choices, rqid });
+  submitChoice(controller: string, choices: string[], rqid?: number, choiceId?: string): void {
+    this.choices.push({ controller, choices, rqid, choiceId });
   }
 
   replay(): Replay {
@@ -430,13 +432,20 @@ Deno.test("hub submits choices, snapshots replay, and explicitly ends owned batt
     socket,
     command(2n, "choice", {
       case: "submitChoice",
-      value: { battleId: "b1", controllerId: "alice", choices: ["move 1"], rqid: 0 },
+      value: {
+        battleId: "b1",
+        controllerId: "alice",
+        choices: ["move 1"],
+        rqid: 0,
+        choiceId: "browser-action",
+      },
     }),
   );
   assertEquals(store.sessions.get("b1")!.choices, [{
     controller: "alice",
     choices: ["move 1"],
     rqid: 0,
+    choiceId: "browser-action",
   }]);
   await hub.receive(
     socket,

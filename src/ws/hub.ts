@@ -458,7 +458,7 @@ export class BattleHub {
     if (!battle.controllers.has(value.controllerId)) {
       throw new BattleRequestError("unknown controller");
     }
-    battle.session.submitChoice(value.controllerId, [...value.choices], value.rqid);
+    battle.session.submitChoice(value.controllerId, [...value.choices], value.rqid, value.choiceId);
     this.enqueueResponse(owner, requestId, {
       case: "choiceAccepted",
       value: create(ChoiceAcceptedSchema, {

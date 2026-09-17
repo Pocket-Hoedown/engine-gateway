@@ -47,7 +47,7 @@ export type BattleEvent =
   | { kind: "frame"; frame: BattleFrameDomain }
   | { kind: "event"; events: SemanticEvent[] }
   | { kind: "state"; state: BattleState }
-  | { kind: "error"; message: string }
+  | { kind: "error"; message: string; choiceId?: string; rqid?: number }
   | { kind: "ended"; winner: string | null };
 
 export interface ControllerSpec {

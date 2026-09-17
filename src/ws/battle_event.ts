@@ -310,7 +310,11 @@ export function encodeBattleEvent(
       case "error":
         return {
           case: "error" as const,
-          value: create(BattleErrorSchema, { message: event.message }),
+          value: create(BattleErrorSchema, {
+            message: event.message,
+            choiceId: event.choiceId,
+            rqid: event.rqid,
+          }),
         };
       case "ended":
         return {

@@ -6,6 +6,64 @@ import type { BattleEvent, ControllerSpec } from "../../src/battle/types.ts";
 
 import { BattleRequestError } from "../../src/battle/types.ts";
 
+Deno.test("emission evidence survives delayed pumping and never reopens a newer submission", async () => {
+  const session = new BattleSession("delayed-error", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  const events = session.events("a")[Symbol.asyncIterator]();
+  const stream = session["battleStream"];
+  const push = stream.push.bind(stream);
+  const held: string[] = [];
+  const nextKind = async (kind: BattleEvent["kind"]) => {
+    while (true) {
+      const { value, done } = await events.next();
+      assert(!done);
+      if (value.kind === kind) return value;
+    }
+  };
+  try {
+    await nextKind("request");
+    session["streams"].p1.push('|request|{"rqid":0}');
+    await nextKind("request");
+    stream.push = (chunk) => {
+      if (chunk?.includes("|error|")) held.push(chunk);
+      else push(chunk);
+    };
+    session.submitChoice("a", ["move 99"], 0, "old-action");
+    assertEquals(held.length, 1);
+    session["streams"].p1.push('|request|{"rqid":7}');
+    await nextKind("request");
+    session.submitChoice("a", ["default"], 7, "new-action");
+    stream.push = push;
+    push(held[0]);
+    const delayed = await nextKind("error");
+    assert(delayed.kind === "error");
+    assertEquals(delayed.choiceId, "old-action");
+    assertEquals(delayed.rqid, 0);
+    assertThrows(
+      () => session.submitChoice("a", ["default"], 7, "third"),
+      BattleRequestError,
+      "no pending request",
+    );
+    // An emission outside a choice write has no causal identity, even with a consumed request.
+    stream.pushMessage("sideupdate", "p1\n|error|[Invalid choice] unrelated");
+    const unrelated = await nextKind("error");
+    assert(unrelated.kind === "error");
+    assertEquals(unrelated.choiceId, undefined);
+    assertEquals(unrelated.rqid, undefined);
+    assertThrows(
+      () => session.submitChoice("a", ["default"], 7, "third"),
+      BattleRequestError,
+      "no pending request",
+    );
+  } finally {
+    stream.push = push;
+    session.destroy();
+  }
+});
+
 Deno.test("bare percentages and colored health update spectator checkpoints", async () => {
   const session = new BattleSession("health-syntax", {
     mode: StandardMode,
@@ -254,6 +312,7 @@ Deno.test("invalid simulator choice emits side error and corrected choice progre
         for await (const event of session.events("a")) {
           if (event.kind === "error") {
             assert(event.message.startsWith("[Invalid choice]"), event.message);
+            assertEquals(Reflect.get(event, "choiceId"), "invalid-action");
             assert(invalid);
             session.submitChoice("a", ["default"]);
             corrected = true;
@@ -261,7 +320,12 @@ Deno.test("invalid simulator choice emits side error and corrected choice progre
           if (event.kind !== "request" || event.request.wait) continue;
           if (!invalid && event.request.active) {
             invalid = true;
-            session.submitChoice("a", ["move 99"]);
+            Reflect.apply(session.submitChoice, session, [
+              "a",
+              ["move 99"],
+              undefined,
+              "invalid-action",
+            ]);
             const before = session.replay().inputLog;
             assertThrows(() => session.submitChoice("a", ["default"]), BattleRequestError);
             assertEquals(session.replay().inputLog, before);

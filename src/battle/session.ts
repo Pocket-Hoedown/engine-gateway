@@ -8,6 +8,7 @@ import { parseRequest } from "./request.ts";
 import { splitSideChunk } from "./chunk.ts";
 import { spectatorSafeEvents, spectatorSafeLines, spectatorSafeState } from "./visibility.ts";
 import { PendingRequestGuard } from "./request_guard.ts";
+import { ChoiceBattleStream } from "./choice_stream.ts";
 import { PushQueue } from "./queue.ts";
 import type { BattleState } from "./state.ts";
 import { StateTracker } from "./tracker.ts";
@@ -94,7 +95,7 @@ export class BattleSession {
   readonly format: BattleFormat;
   readonly ended: Promise<{ winner: string | null }>;
 
-  private readonly battleStream: InstanceType<typeof BattleStreams.BattleStream>;
+  private readonly battleStream: ChoiceBattleStream;
   private readonly streams: ReturnType<typeof BattleStreams.getPlayerStreams>;
   private readonly bindings = new Map<string, Binding>();
   private readonly byPlayer = new Map<SimPlayer, string>();
@@ -162,7 +163,7 @@ export class BattleSession {
       tracker.initialize(gameType, teams);
     }
 
-    this.battleStream = new BattleStreams.BattleStream();
+    this.battleStream = new ChoiceBattleStream();
     this.streams = BattleStreams.getPlayerStreams(this.battleStream);
 
     this.write(buildStartBlock(inputs.formatid, inputs.seed, inputs.packedTeams));
@@ -176,12 +177,15 @@ export class BattleSession {
     void this.streams.omniscient.write(line);
   }
 
-  submitChoice(controllerId: string, choices: string[], rqid?: number): void {
+  submitChoice(controllerId: string, choices: string[], rqid?: number, choiceId?: string): void {
     const binding = this.bindings.get(controllerId);
     if (!binding) throw new BattleRequestError(`unknown controller: ${controllerId}`);
     if (this.done) throw new BattleRequestError("battle has ended");
-    this.pendingRequests.consume(controllerId, rqid);
-    this.write(`>${binding.simPlayer} ${choices.join(", ")}`);
+    const command = choices.join(", ");
+    if (/[\r\n]/.test(command)) throw new BattleRequestError("choice must be a single input line");
+    const submission = this.pendingRequests.consume(controllerId, rqid, choiceId);
+    this.inputLog.push(`>${binding.simPlayer} ${command}`);
+    this.battleStream.writeChoice(binding.simPlayer, command, submission);
   }
 
   events(controllerId: string): AsyncIterable<BattleEvent> {
@@ -352,13 +356,19 @@ export class BattleSession {
             queue.push({ kind: "error", message: "Invalid simulator request" });
             this.markSpectatorReady(player);
             break;
-          case "error":
+          case "error": {
             flush();
-            if (entry.message.startsWith("[Invalid choice]")) {
-              this.pendingRequests.reject(controllerId);
+            const { message, submission } = this.battleStream.takeError(entry.message);
+            if (message.startsWith("[Invalid choice]")) {
+              this.pendingRequests.reject(controllerId, submission);
             }
-            queue.push({ kind: "error", message: entry.message });
+            queue.push({
+              kind: "error",
+              message,
+              ...(submission ? { choiceId: submission.choiceId, rqid: submission.rqid } : {}),
+            });
             break;
+          }
         }
       }
       flush();

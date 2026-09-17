@@ -1,26 +1,33 @@
 import { BattleRequestError } from "./types.ts";
 
-/** Enforces one submission per actionable controller request, with optional sim identity. */
+/** Object identity binds a submission to one request incarnation, even without rqid. */
+export interface ConsumedSubmission {
+  readonly choiceId?: string;
+  readonly rqid?: number;
+}
+
 export class PendingRequestGuard {
-  private readonly pending = new Map<string, { rqid?: number; consumed: boolean }>();
+  private readonly pending = new Map<string, { rqid?: number; consumed?: ConsumedSubmission }>();
 
   open(controllerId: string, rqid?: number): void {
-    this.pending.set(controllerId, { rqid, consumed: false });
+    this.pending.set(controllerId, { rqid });
   }
 
-  consume(controllerId: string, rqid?: number): void {
+  consume(controllerId: string, rqid?: number, choiceId?: string): ConsumedSubmission {
     const request = this.pending.get(controllerId);
     if (!request || request.consumed) throw new BattleRequestError("no pending request");
     if (request.rqid !== undefined && request.rqid !== rqid) {
       throw new BattleRequestError("stale request");
     }
-    request.consumed = true;
+    const submission = Object.freeze({ choiceId, rqid: request.rqid });
+    request.consumed = submission;
+    return submission;
   }
 
-  /** An invalid simulator choice may retry only the still-consumed pending request. */
-  reject(controllerId: string): void {
+  /** Only evidence captured at the synchronous simulator write boundary may reopen. */
+  reject(controllerId: string, submission?: ConsumedSubmission): void {
     const request = this.pending.get(controllerId);
-    if (request?.consumed) request.consumed = false;
+    if (submission && request?.consumed === submission) request.consumed = undefined;
   }
 
   clear(controllerId: string): void {

@@ -1,4 +1,17 @@
 import { assertEquals, assertThrows } from "@std/assert";
+Deno.test("wire errors retain exact choice identity and rqid zero", () => {
+  const error = encodeBattleEvent("b", { audience: "controller", controllerId: "a", side: 0 }, {
+    kind: "error",
+    message: "[Invalid choice] bad",
+    choiceId: "opaque",
+    rqid: 0,
+  });
+  assertEquals(error.payload.case, "error");
+  if (error.payload.case !== "error") throw new Error("missing error");
+  assertEquals(error.payload.value.choiceId, "opaque");
+  assertEquals(error.payload.value.rqid, 0);
+});
+
 import type { SemanticEvent } from "../../src/battle/events.ts";
 import type { BattleState } from "../../src/battle/state.ts";
 import {
