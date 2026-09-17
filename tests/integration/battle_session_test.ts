@@ -6,6 +6,64 @@ import type { BattleEvent, ControllerSpec } from "../../src/battle/types.ts";
 
 import { BattleRequestError } from "../../src/battle/types.ts";
 
+Deno.test("private requests follow a render-safe checkpoint boundary", async () => {
+  const session = new BattleSession("privacy-order", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  let previous: BattleEvent | undefined;
+  try {
+    for await (const event of session.events("a")) {
+      if (event.kind === "frame") {
+        assert(event.frame.protocolLines.every((line) => !line.includes("|request|")));
+      }
+      if (event.kind === "request") {
+        assertEquals(previous?.kind, "frame");
+        if (previous?.kind === "frame") {
+          assertEquals(previous.frame.protocolLines, []);
+          const own = previous.frame.checkpoint.sides[0];
+          const pokemon = [...own.active, ...own.team].filter((mon) => mon !== null);
+          assert(pokemon.some((mon) => mon.moves.length > 0));
+          assert(pokemon.some((mon) => mon.maxhp > 100 && !mon.hpIsPercent));
+        }
+        break;
+      }
+      previous = event;
+    }
+  } finally {
+    session.destroy();
+  }
+});
+
+Deno.test("spectator canaries are absent before public reveals", async () => {
+  const controllers = singles();
+  controllers[0].team.members[0].item = "Choice Band";
+  const session = new BattleSession("privacy-canary", {
+    mode: StandardMode,
+    format: "single",
+    controllers,
+  }, 42);
+  try {
+    const { value } = await session.spectator()[Symbol.asyncIterator]().next();
+    assertEquals(value.kind, "frame");
+    const serialized = JSON.stringify(value);
+    for (const secret of ["Choice Band", "Static", "Thunderbolt", "thunderbolt", "|request|"]) {
+      assert(!serialized.includes(secret), `spectator leaked ${secret}`);
+    }
+    if (value.kind === "frame") {
+      for (const side of value.frame.checkpoint.sides) {
+        for (const mon of side.team) {
+          assertEquals(mon.hpIsPercent, true);
+          assertEquals(mon.maxhp, 100);
+        }
+      }
+    }
+  } finally {
+    session.destroy();
+  }
+});
+
 Deno.test("duplicate request consumption writes no additional simulator input", async () => {
   const session = new BattleSession("duplicate", {
     mode: StandardMode,
@@ -195,6 +253,20 @@ Deno.test("single battle emits normalized state and events through terminal orde
   for (const events of [aEvents, bEvents, spectatorEvents]) {
     assert(events.some((event) => event.kind === "frame"));
     assertTerminalOrdering(events);
+    for (const [index, event] of events.entries()) {
+      if (event.kind === "request") assertEquals(events[index - 1]?.kind, "frame");
+      if (event.kind !== "frame") continue;
+      assert(event.frame.protocolLines.every((line) => !line.includes("|request|")));
+      if (events === spectatorEvents) {
+        for (const line of event.frame.protocolLines) {
+          if (/^\|(?:switch|drag|-damage|-heal)\|/.test(line)) {
+            const health =
+              line.split("|")[line.startsWith("|switch|") || line.startsWith("|drag|") ? 4 : 3];
+            assert(!health.includes("/") || /\/100(?: |$)/.test(health), line);
+          }
+        }
+      }
+    }
   }
 
   const frames = aEvents.flatMap((event) => event.kind === "frame" ? [event.frame] : []);
@@ -211,8 +283,8 @@ Deno.test("single battle emits normalized state and events through terminal orde
   const faintDamage = spectatorSemantics.find((event) => event.type === "damage" && event.hp === 0);
   assertExists(faintDamage);
   if (faintDamage.type === "damage") {
-    assertEquals(faintDamage.hpIsPercent, false);
-    assert(faintDamage.maxhp > 100);
+    assertEquals(faintDamage.hpIsPercent, true);
+    assertEquals(faintDamage.maxhp, 100);
   }
 
   const moveFrame = spectatorEvents.find((event) =>
@@ -223,15 +295,17 @@ Deno.test("single battle emits normalized state and events through terminal orde
   const subsequentFrames = spectatorEvents.slice(
     spectatorEvents.indexOf(moveFrame!),
   ).flatMap((event) => event.kind === "frame" ? [event.frame] : []);
-  const frameWithDecrementedPp = subsequentFrames.find((frame) => {
-    const pikachu = [
-      ...frame.checkpoint.sides[0].active.filter((pokemon) => pokemon !== null),
-      ...frame.checkpoint.sides[0].team,
-    ].find((pokemon) => pokemon.speciesForme === "Pikachu");
-    const tb = pikachu?.moves.find((move) => move.id === "thunderbolt");
-    return tb && (tb.pp ?? 0) < (tb.maxpp ?? 0);
-  });
-  assertExists(frameWithDecrementedPp);
+  for (const frame of subsequentFrames) {
+    for (const side of frame.checkpoint.sides) {
+      for (const pokemon of [...side.active, ...side.team]) {
+        if (!pokemon) continue;
+        assertEquals(pokemon.moves, []);
+        assertEquals(pokemon.item, null);
+        assertEquals(pokemon.ability, null);
+      }
+    }
+    assert(frame.protocolLines.every((line) => !line.includes("|request|")));
+  }
 });
 
 Deno.test("hidden-info keeps side A exact and side B percentage-scoped", async () => {
@@ -276,7 +350,7 @@ Deno.test("hidden-info keeps side A exact and side B percentage-scoped", async (
   assert(ownKnown.ability);
 });
 
-Deno.test("spectator starts with exact private state and receives no requests", async () => {
+Deno.test("spectator starts with public state and receives no requests", async () => {
   const s = new BattleSession("t2s", {
     mode: StandardMode,
     format: "single",
@@ -296,10 +370,13 @@ Deno.test("spectator starts with exact private state and receives no requests", 
   for (const side of firstFrame.frame.checkpoint.sides) {
     const pokemon = [...side.active.filter((entry) => entry !== null), ...side.team];
     assert(pokemon.length > 0);
-    for (const entry of pokemon) assertEquals(entry.hpIsPercent, false);
-    assert(pokemon.some((entry) => entry.maxhp > 100));
-    assert(pokemon.some((entry) => entry.ability !== null));
-    assert(pokemon.some((entry) => entry.moves.length > 0));
+    for (const entry of pokemon) {
+      assertEquals(entry.hpIsPercent, true);
+      assertEquals(entry.maxhp, 100);
+      assertEquals(entry.ability, null);
+      assertEquals(entry.item, null);
+      assertEquals(entry.moves, []);
+    }
   }
 });
 
@@ -435,8 +512,9 @@ Deno.test("immediate destroy retains format and team state before ended", async 
       assertEquals(frame.frame.checkpoint.gameType, "doubles");
       assertEquals(frame.frame.checkpoint.sides[0].active.length, 2);
       assertEquals(frame.frame.checkpoint.sides[1].active.length, 2);
-      assertEquals(frame.frame.checkpoint.sides[0].team.length, 2);
-      assertEquals(frame.frame.checkpoint.sides[1].team.length, 2);
+      const knownTeamSize = events === spectatorEvents ? 0 : 2;
+      assertEquals(frame.frame.checkpoint.sides[0].team.length, knownTeamSize);
+      assertEquals(frame.frame.checkpoint.sides[1].team.length, knownTeamSize);
     }
   }
 });

@@ -3,8 +3,10 @@ import { Dex } from "@pkmn/dex";
 import { BattleStreams, Teams } from "@pkmn/sim";
 import type { BattleFormat } from "../modes/types.ts";
 import { buildBattleInputs } from "../modes/build.ts";
-import { buildStartBlock, isTieLine, isTimestampLine, winnerFromLine } from "./protocol.ts";
+import { buildStartBlock, isTimestampLine, winnerFromLine } from "./protocol.ts";
 import { parseRequest } from "./request.ts";
+import { splitSideChunk } from "./chunk.ts";
+import { spectatorSafeEvents, spectatorSafeLines, spectatorSafeState } from "./visibility.ts";
 import { PendingRequestGuard } from "./request_guard.ts";
 import { PushQueue } from "./queue.ts";
 import type { BattleState } from "./state.ts";
@@ -38,13 +40,11 @@ export class BattleSession {
   private readonly spectatorQueue = new PushQueue<BattleEvent>();
   private readonly trackers = new Map<SimPlayer, StateTracker>();
   private readonly spectatorTracker: StateTracker;
-  private readonly spectatorRequests = new Map<SimPlayer, string>();
   private readonly spectatorReadyPlayers = new Set<SimPlayer>();
   private readonly spectatorReady: Promise<void>;
   private readonly inputLog: string[] = [];
   private readonly pendingRequests = new PendingRequestGuard();
   private readonly closedPlayers = new Set<SimPlayer>();
-  private spectatorInitialized = false;
   private spectatorSubscribed = false;
   private spectatorClosed = false;
   private latestSpectatorState: BattleState | undefined;
@@ -94,8 +94,9 @@ export class BattleSession {
       : "triples";
     this.trackers.set("p1", new StateTracker(0, gens, [sets[0], undefined]));
     this.trackers.set("p2", new StateTracker(1, gens, [undefined, sets[1]]));
-    this.spectatorTracker = new StateTracker(null, gens, sets);
-    for (const tracker of [...this.trackers.values(), this.spectatorTracker]) {
+    this.spectatorTracker = new StateTracker(null, gens);
+    this.spectatorTracker.initialize(gameType, [[], []]);
+    for (const tracker of this.trackers.values()) {
       tracker.initialize(gameType, teams);
     }
 
@@ -105,7 +106,7 @@ export class BattleSession {
     this.write(buildStartBlock(inputs.formatid, inputs.seed, inputs.packedTeams));
     void this.pumpSide("p1");
     void this.pumpSide("p2");
-    void this.pumpOmniscient();
+    void this.pumpSpectator();
   }
 
   private write(line: string): void {
@@ -202,23 +203,19 @@ export class BattleSession {
     return this.queues.get(this.byPlayer.get(player) as string) as PushQueue<BattleEvent>;
   }
 
-  private markSpectatorReady(player: SimPlayer, line: string): void {
-    this.spectatorRequests.set(player, line);
+  private markSpectatorReady(player: SimPlayer): void {
     this.spectatorReadyPlayers.add(player);
-    if (this.spectatorInitialized) {
-      const result = this.spectatorTracker.ingest([line]);
-      this.pushSpectatorFrame({
-        turn: result.state.turn,
-        phase: result.state.phase,
-        protocolLines: [line],
-        events: result.events,
-        checkpoint: result.state,
-      });
-    }
     if (this.spectatorReadyPlayers.size === 2) this.resolveSpectatorReady();
   }
 
-  private pushSpectatorFrame(frame: BattleFrameDomain): void {
+  private pushSpectatorFrame(input: BattleFrameDomain): void {
+    const frame: BattleFrameDomain = {
+      turn: input.turn,
+      phase: input.phase,
+      protocolLines: spectatorSafeLines(input.protocolLines),
+      events: spectatorSafeEvents(input.events),
+      checkpoint: spectatorSafeState(input.checkpoint),
+    };
     this.latestSpectatorFrame = frame;
     this.latestSpectatorState = frame.checkpoint;
     if (this.spectatorSubscribed) this.spectatorQueue.push({ kind: "frame", frame });
@@ -228,6 +225,7 @@ export class BattleSession {
     queue: PushQueue<BattleEvent>,
     tracker: StateTracker,
     lines: string[],
+    renderLines: string[],
   ): void {
     if (!lines.length) return;
     const result = tracker.ingest(lines);
@@ -236,7 +234,7 @@ export class BattleSession {
       frame: {
         turn: result.state.turn,
         phase: result.state.phase,
-        protocolLines: lines,
+        protocolLines: renderLines,
         events: result.events,
         checkpoint: result.state,
       },
@@ -247,35 +245,24 @@ export class BattleSession {
     const queue = this.queueForPlayer(player);
     const tracker = this.trackers.get(player) as StateTracker;
     for await (const chunk of this.streams[player]) {
-      const lines: string[] = [];
-      let terminal: string | null | undefined;
-      for (const line of chunk.split("\n")) {
-        if (!line || isTimestampLine(line)) continue;
-        if (line.startsWith("|request|")) {
-          lines.push(line);
-          const json = line.slice("|request|".length);
-          if (json) {
-            const request = parseRequest(json);
-            const controllerId = this.byPlayer.get(player)!;
-            if (request.wait) this.pendingRequests.clear(controllerId);
-            else this.pendingRequests.open(controllerId, request.rqid);
-            queue.push({ kind: "request", request });
-            this.markSpectatorReady(player, line);
-          }
-        } else if (line.startsWith("|error|")) {
-          const message = line.slice("|error|".length);
-          if (message.startsWith("[Invalid choice]")) {
-            this.pendingRequests.reject(this.byPlayer.get(player)!);
-          }
-          queue.push({ kind: "error", message });
-        } else {
-          lines.push(line);
-          const winner = winnerFromLine(line);
-          if (winner !== null) terminal = winner;
-          else if (isTieLine(line)) terminal = null;
-        }
+      const parsed = splitSideChunk(chunk);
+      const { terminal } = parsed;
+      // Complete private ingestion before publishing the corresponding boundary.
+      this.pushNormalized(queue, tracker, parsed.trackerLines, parsed.renderLines);
+      if (parsed.requestJson) {
+        const request = parseRequest(parsed.requestJson);
+        const controllerId = this.byPlayer.get(player)!;
+        if (request.wait) this.pendingRequests.clear(controllerId);
+        else this.pendingRequests.open(controllerId, request.rqid);
+        queue.push({ kind: "request", request });
+        this.markSpectatorReady(player);
       }
-      this.pushNormalized(queue, tracker, lines);
+      for (const message of parsed.errors) {
+        if (message.startsWith("[Invalid choice]")) {
+          this.pendingRequests.reject(this.byPlayer.get(player)!);
+        }
+        queue.push({ kind: "error", message });
+      }
       if (terminal !== undefined) {
         this.closePlayer(player, terminal);
         return;
@@ -298,28 +285,14 @@ export class BattleSession {
     }
   }
 
-  private async pumpOmniscient(): Promise<void> {
-    for await (const chunk of this.streams.omniscient) {
-      const lines: string[] = [];
-      let terminal: string | null | undefined;
-      for (const line of chunk.split("\n")) {
-        if (!line || isTimestampLine(line)) continue;
-        lines.push(line);
-        const winner = winnerFromLine(line);
-        if (winner !== null) terminal = winner;
-        else if (isTieLine(line)) terminal = null;
-      }
+  private async pumpSpectator(): Promise<void> {
+    for await (const chunk of this.streams.spectator) {
+      const { renderLines, terminal } = splitSideChunk(chunk);
+      const lines = spectatorSafeLines(renderLines);
       if (!lines.length) continue;
       await this.spectatorReady;
       const result = this.spectatorTracker.ingest(lines);
-      let state = result.state;
-      if (!this.spectatorInitialized) {
-        for (const player of ["p1", "p2"] as const) {
-          const request = this.spectatorRequests.get(player);
-          if (request) state = this.spectatorTracker.ingest([request]).state;
-        }
-        this.spectatorInitialized = true;
-      }
+      const state = result.state;
       this.pushSpectatorFrame({
         turn: state.turn,
         phase: state.phase,
