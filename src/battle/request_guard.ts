@@ -2,23 +2,25 @@ import { BattleRequestError } from "./types.ts";
 
 /** Enforces one submission per actionable controller request, with optional sim identity. */
 export class PendingRequestGuard {
-  private nextId = 0;
-  private readonly pending = new Map<string, { id: number; rqid?: number }>();
+  private readonly pending = new Map<string, { rqid?: number; consumed: boolean }>();
 
-  open(controllerId: string, rqid?: number): number {
-    const id = ++this.nextId;
-    this.pending.set(controllerId, { id, rqid });
-    return id;
+  open(controllerId: string, rqid?: number): void {
+    this.pending.set(controllerId, { rqid, consumed: false });
   }
 
-  consume(controllerId: string, rqid?: number): number {
+  consume(controllerId: string, rqid?: number): void {
     const request = this.pending.get(controllerId);
-    if (!request) throw new BattleRequestError("no pending request");
+    if (!request || request.consumed) throw new BattleRequestError("no pending request");
     if (request.rqid !== undefined && request.rqid !== rqid) {
       throw new BattleRequestError("stale request");
     }
-    this.pending.delete(controllerId);
-    return request.id;
+    request.consumed = true;
+  }
+
+  /** An invalid simulator choice may retry only the still-consumed pending request. */
+  reject(controllerId: string): void {
+    const request = this.pending.get(controllerId);
+    if (request?.consumed) request.consumed = false;
   }
 
   clear(controllerId: string): void {

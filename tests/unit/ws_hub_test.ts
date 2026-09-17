@@ -39,16 +39,49 @@ Deno.test("ValidateTeam returns legality errors without creating a battle", asyn
   );
   const output = decode(socket)[1].payload;
   assert(output.case === "message" && output.value.payload.case === "response");
-  const result = output.value.payload.value.result as unknown as {
-    case: string;
-    value: { valid: boolean; errors: string[] };
-  };
-  assertEquals(result.case, "teamValidation");
+  const result = output.value.payload.value.result;
+  assert(result.case === "teamValidation");
   assertEquals(result.value.valid, false);
   assert(result.value.errors.length > 0);
   assertEquals(store.creates, 0);
   await hub.shutdown();
 });
+
+for (const valid of [true, false]) {
+  Deno.test(`ValidateTeam ${valid ? "accepts legal teams" : "rejects malformed teams"} without creating a battle`, async () => {
+    const store = new FakeStore();
+    const socket = new FakeSocket();
+    const hub = new BattleHub({ manager: store });
+    hub.open(socket);
+    await hub.receive(socket, hello());
+    await hub.receive(
+      socket,
+      command(1n, "validate", {
+        case: "validateTeam",
+        value: {
+          modeId: "standard",
+          format: BattleFormat.SINGLE,
+          ...(valid ? { team: team("Legal") } : {}),
+        },
+      }),
+    );
+    const output = decode(socket)[1].payload;
+    assert(output.case === "message" && output.value.payload.case === "response");
+    const response = output.value.payload.value;
+    assertEquals(response.requestId, "validate");
+    const result = response.result;
+    if (valid) {
+      assert(result.case === "teamValidation");
+      assertEquals(result.value.valid, true);
+      assertEquals(result.value.errors, []);
+    } else {
+      assert(result.case === "failure");
+      assertEquals(result.value.code, FailureCode.INVALID_ARGUMENT);
+    }
+    assertEquals(store.creates, 0);
+    await hub.shutdown();
+  });
+}
 
 class FakeClock implements HubClock {
   private now = 0;
@@ -97,7 +130,7 @@ class FakeSession {
   readonly seed: number;
   readonly queues = new Map<string, PushQueue<BattleEvent>>();
   readonly spectatorQueue = new PushQueue<BattleEvent>();
-  readonly choices: Array<{ controller: string; choices: string[] }> = [];
+  readonly choices: Array<{ controller: string; choices: string[]; rqid?: number }> = [];
   destroyed = false;
 
   constructor(id: string, seed: number) {
@@ -115,8 +148,8 @@ class FakeSession {
     return this.spectatorQueue;
   }
 
-  submitChoice(controller: string, choices: string[]): void {
-    this.choices.push({ controller, choices });
+  submitChoice(controller: string, choices: string[], rqid?: number): void {
+    this.choices.push({ controller, choices, rqid });
   }
 
   replay(): Replay {
@@ -397,9 +430,14 @@ Deno.test("hub submits choices, snapshots replay, and explicitly ends owned batt
     socket,
     command(2n, "choice", {
       case: "submitChoice",
-      value: { battleId: "b1", controllerId: "alice", choices: ["move 1"] },
+      value: { battleId: "b1", controllerId: "alice", choices: ["move 1"], rqid: 0 },
     }),
   );
+  assertEquals(store.sessions.get("b1")!.choices, [{
+    controller: "alice",
+    choices: ["move 1"],
+    rqid: 0,
+  }]);
   await hub.receive(
     socket,
     command(3n, "replay", {

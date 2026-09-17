@@ -263,7 +263,11 @@ export class BattleSession {
             this.markSpectatorReady(player, line);
           }
         } else if (line.startsWith("|error|")) {
-          queue.push({ kind: "error", message: line.slice("|error|".length) });
+          const message = line.slice("|error|".length);
+          if (message.startsWith("[Invalid choice]")) {
+            this.pendingRequests.reject(this.byPlayer.get(player)!);
+          }
+          queue.push({ kind: "error", message });
         } else {
           lines.push(line);
           const winner = winnerFromLine(line);

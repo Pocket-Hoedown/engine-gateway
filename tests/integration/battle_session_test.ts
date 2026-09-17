@@ -31,6 +31,102 @@ Deno.test("duplicate request consumption writes no additional simulator input", 
   }
 });
 
+Deno.test("invalid simulator choice emits side error and corrected choice progresses", async () => {
+  const session = new BattleSession("invalid", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  let invalid = false;
+  let corrected = false;
+  let progressed = false;
+  try {
+    await Promise.all([
+      autoplay(session, "b"),
+      (async () => {
+        for await (const event of session.events("a")) {
+          if (event.kind === "error") {
+            assert(event.message.startsWith("[Invalid choice]"), event.message);
+            assert(invalid);
+            session.submitChoice("a", ["default"]);
+            corrected = true;
+          }
+          if (event.kind !== "request" || event.request.wait) continue;
+          if (!invalid && event.request.active) {
+            invalid = true;
+            session.submitChoice("a", ["move 99"]);
+            const before = session.replay().inputLog;
+            assertThrows(() => session.submitChoice("a", ["default"]), BattleRequestError);
+            assertEquals(session.replay().inputLog, before);
+          } else {
+            if (corrected) progressed = true;
+            session.submitChoice("a", ["default"]);
+          }
+        }
+      })(),
+    ]);
+    assert(invalid && corrected && progressed);
+  } finally {
+    session.destroy();
+  }
+});
+
+Deno.test("side stream preserves rqid zero, clears wait, and opens later actionable requests", async () => {
+  const session = new BattleSession("side-boundary", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  const events = session.events("a")[Symbol.asyncIterator]();
+  const nextRequest = async () => {
+    while (true) {
+      const { value, done } = await events.next();
+      assert(!done);
+      if (value.kind === "request") return value.request;
+    }
+  };
+  try {
+    await nextRequest();
+    // Inject at the actual simulator output boundary: this sim version omits rqid.
+    session["streams"].p1.push('|request|{"rqid":0}');
+    assertEquals((await nextRequest()).rqid, 0);
+    const before = session.replay().inputLog;
+    for (const rqid of [undefined, 1]) {
+      assertThrows(
+        () => session.submitChoice("a", ["default"], rqid),
+        BattleRequestError,
+        "stale request",
+      );
+      assertEquals(session.replay().inputLog, before);
+    }
+    session["streams"].p1.push('|request|{"wait":true}');
+    assertEquals((await nextRequest()).wait, true);
+    assertThrows(
+      () => session.submitChoice("a", ["default"], 0),
+      BattleRequestError,
+      "no pending request",
+    );
+    assertEquals(session.replay().inputLog, before);
+    session["streams"].p1.push('|request|{"rqid":0}\n|error|[Invalid choice] delayed');
+    await nextRequest();
+    session.submitChoice("a", ["default"], 0);
+    assertEquals(session.replay().inputLog, [...before, ">p1 default"]);
+    session["streams"].p1.push("|error|[Unavailable choice] unrelated");
+    while (true) {
+      const { value, done } = await events.next();
+      assert(!done);
+      if (value.kind === "error" && value.message === "[Unavailable choice] unrelated") break;
+    }
+    assertThrows(
+      () => session.submitChoice("a", ["default"], 0),
+      BattleRequestError,
+      "no pending request",
+    );
+  } finally {
+    session.destroy();
+  }
+});
+
 const mon = (species: string, moves: string[]): PhfTeam => ({
   schema: "phf-team/1",
   name: species,
