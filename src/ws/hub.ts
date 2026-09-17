@@ -3,7 +3,9 @@ import { BattleManager } from "../battle/manager.ts";
 import { BattleSession } from "../battle/session.ts";
 import { type BattleEvent, BattleRequestError } from "../battle/types.ts";
 import { type BattleAudience, encodeBattleEvent } from "./battle_event.ts";
-import { decodeCreateBattle } from "./decode.ts";
+import { decodeCreateBattle, decodeValidateTeam } from "./decode.ts";
+import { validateTeam } from "../teams/validator.ts";
+import { TeamValidationResultSchema } from "./protocol.ts";
 import { encodeReplay, encodeUnexpectedFailure } from "./encode.ts";
 import {
   BattleCreatedSchema,
@@ -367,6 +369,18 @@ export class BattleHub {
     owner.lastClientSequence = command.sequence;
     try {
       switch (command.command.case) {
+        case "validateTeam": {
+          const { mode, format, team } = decodeValidateTeam(command.command.value);
+          const result = validateTeam(team, mode, format);
+          this.enqueueResponse(owner, command.requestId, {
+            case: "teamValidation",
+            value: create(TeamValidationResultSchema, {
+              valid: result.valid,
+              errors: [...result.errors],
+            }),
+          });
+          return;
+        }
         case "createBattle":
           await this.createBattle(owner, command.requestId, command.command.value);
           return;
@@ -444,7 +458,7 @@ export class BattleHub {
     if (!battle.controllers.has(value.controllerId)) {
       throw new BattleRequestError("unknown controller");
     }
-    battle.session.submitChoice(value.controllerId, [...value.choices]);
+    battle.session.submitChoice(value.controllerId, [...value.choices], value.rqid);
     this.enqueueResponse(owner, requestId, {
       case: "choiceAccepted",
       value: create(ChoiceAcceptedSchema, {

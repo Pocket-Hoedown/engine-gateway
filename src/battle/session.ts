@@ -5,6 +5,7 @@ import type { BattleFormat } from "../modes/types.ts";
 import { buildBattleInputs } from "../modes/build.ts";
 import { buildStartBlock, isTieLine, isTimestampLine, winnerFromLine } from "./protocol.ts";
 import { parseRequest } from "./request.ts";
+import { PendingRequestGuard } from "./request_guard.ts";
 import { PushQueue } from "./queue.ts";
 import type { BattleState } from "./state.ts";
 import { StateTracker } from "./tracker.ts";
@@ -41,6 +42,7 @@ export class BattleSession {
   private readonly spectatorReadyPlayers = new Set<SimPlayer>();
   private readonly spectatorReady: Promise<void>;
   private readonly inputLog: string[] = [];
+  private readonly pendingRequests = new PendingRequestGuard();
   private readonly closedPlayers = new Set<SimPlayer>();
   private spectatorInitialized = false;
   private spectatorSubscribed = false;
@@ -111,10 +113,11 @@ export class BattleSession {
     void this.streams.omniscient.write(line);
   }
 
-  submitChoice(controllerId: string, choices: string[]): void {
+  submitChoice(controllerId: string, choices: string[], rqid?: number): void {
     const binding = this.bindings.get(controllerId);
     if (!binding) throw new BattleRequestError(`unknown controller: ${controllerId}`);
     if (this.done) throw new BattleRequestError("battle has ended");
+    this.pendingRequests.consume(controllerId, rqid);
     this.write(`>${binding.simPlayer} ${choices.join(", ")}`);
   }
 
@@ -252,7 +255,11 @@ export class BattleSession {
           lines.push(line);
           const json = line.slice("|request|".length);
           if (json) {
-            queue.push({ kind: "request", request: parseRequest(json) });
+            const request = parseRequest(json);
+            const controllerId = this.byPlayer.get(player)!;
+            if (request.wait) this.pendingRequests.clear(controllerId);
+            else this.pendingRequests.open(controllerId, request.rqid);
+            queue.push({ kind: "request", request });
             this.markSpectatorReady(player, line);
           }
         } else if (line.startsWith("|error|")) {
@@ -337,6 +344,7 @@ export class BattleSession {
   private closePlayer(player: SimPlayer, winner: string | null): void {
     if (this.closedPlayers.has(player)) return;
     this.closedPlayers.add(player);
+    this.pendingRequests.clear(this.byPlayer.get(player)!);
     const queue = this.queueForPlayer(player);
     queue.push({ kind: "ended", winner });
     queue.close();

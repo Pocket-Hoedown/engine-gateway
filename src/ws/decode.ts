@@ -9,6 +9,7 @@ import {
   type PhfMember as WirePhfMember,
   type PhfTeam as WirePhfTeam,
   Side,
+  type ValidateTeam,
 } from "./protocol.ts";
 import { invalid, requireText, requireUint32 } from "./validation.ts";
 
@@ -114,6 +115,14 @@ export function decodeTeam(team: WirePhfTeam | undefined): PhfTeam {
     gen: 5,
     ...(team.tags.length ? { tags: [...team.tags] } : {}),
     members: team.members.map(decodeMember),
+  };
+}
+
+export function decodeValidateTeam(message: ValidateTeam) {
+  return {
+    mode: resolveMode(message.modeId),
+    format: decodeFormat(message.format),
+    team: decodeTeam(message.team),
   };
 }
 

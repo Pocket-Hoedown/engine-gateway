@@ -1,8 +1,35 @@
-import { assert, assertEquals, assertExists } from "@std/assert";
+import { assert, assertEquals, assertExists, assertThrows } from "@std/assert";
 import { BattleSession } from "../../src/battle/session.ts";
 import { StandardMode } from "../../src/modes/standard.ts";
 import type { PhfTeam } from "../../src/teams/types.ts";
 import type { BattleEvent, ControllerSpec } from "../../src/battle/types.ts";
+
+import { BattleRequestError } from "../../src/battle/types.ts";
+
+Deno.test("duplicate request consumption writes no additional simulator input", async () => {
+  const session = new BattleSession("duplicate", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  try {
+    for await (const event of session.events("a")) {
+      if (event.kind !== "request" || event.request.wait) continue;
+      assertEquals(event.request.rqid, undefined);
+      session.submitChoice("a", ["default"]);
+      const before = session.replay().inputLog;
+      assertThrows(
+        () => session.submitChoice("a", ["default"]),
+        BattleRequestError,
+        "no pending request",
+      );
+      assertEquals(session.replay().inputLog, before);
+      break;
+    }
+  } finally {
+    session.destroy();
+  }
+});
 
 const mon = (species: string, moves: string[]): PhfTeam => ({
   schema: "phf-team/1",
@@ -237,7 +264,7 @@ Deno.test("doubles: a two-active battle drives to completion", async () => {
   }
 });
 
-Deno.test("submitChoice joins multi-slot choices and maps to the sim player", () => {
+Deno.test("submitChoice joins multi-slot choices and maps to the sim player", async () => {
   const s = new BattleSession("t5", {
     mode: StandardMode,
     format: "double",
@@ -246,12 +273,23 @@ Deno.test("submitChoice joins multi-slot choices and maps to the sim player", ()
       { id: "b", side: 1, team: team(["Bulbasaur", "Charmander"], ["Tackle", "Scratch"]) },
     ],
   }, 1);
-  s.submitChoice("a", ["move 1 1", "move 1 2"]);
-  s.submitChoice("b", ["move 1 1", "move 1 2"]);
-  const log = s.replay().inputLog;
-  assert(log.some((l) => l === ">p1 move 1 1, move 1 2"), log.join("\n"));
-  assert(log.some((l) => l === ">p2 move 1 1, move 1 2"));
-  s.destroy();
+  try {
+    await Promise.all(["a", "b"].map(async (cid) => {
+      for await (const ev of s.events(cid)) {
+        if (ev.kind !== "request" || ev.request.wait) continue;
+        if (ev.request.active) return;
+        if (ev.request.teamPreview) s.submitChoice(cid, ["default"]);
+      }
+      throw new Error(`No active request for ${cid}`);
+    }));
+    s.submitChoice("a", ["move 1 1", "move 1 2"]);
+    s.submitChoice("b", ["move 1 1", "move 1 2"]);
+    const log = s.replay().inputLog;
+    assert(log.some((l) => l === ">p1 move 1 1, move 1 2"), log.join("\n"));
+    assert(log.some((l) => l === ">p2 move 1 1, move 1 2"));
+  } finally {
+    s.destroy();
+  }
 });
 
 Deno.test("submitChoice with an unknown controller throws", () => {

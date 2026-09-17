@@ -12,6 +12,44 @@ import {
   Side,
 } from "../../src/ws/protocol.ts";
 
+// Literal wire fields keep the command regression executable against the old schema.
+function field(number: number, value: string | number[]): number[] {
+  const bytes = typeof value === "string" ? [...new TextEncoder().encode(value)] : value;
+  assert(bytes.length < 128);
+  return [number * 8 + 2, bytes.length, ...bytes];
+}
+
+Deno.test("ValidateTeam returns legality errors without creating a battle", async () => {
+  const store = new FakeStore();
+  const socket = new FakeSocket();
+  const hub = new BattleHub({ manager: store });
+  hub.open(socket);
+  await hub.receive(socket, hello());
+  const member = [
+    ...field(1, "Tauros"),
+    ...field(2, "Intimidate"),
+    ...field(3, "NotANature"),
+    ...field(4, "Return"),
+  ];
+  const teamBytes = [...field(1, "phf-team/1"), ...field(2, "Illegal"), 24, 5, ...field(5, member)];
+  const validate = [...field(1, "standard"), 16, 1, ...field(3, teamBytes)];
+  await hub.receive(
+    socket,
+    new Uint8Array(field(3, [8, 1, ...field(2, "validate"), ...field(7, validate)])),
+  );
+  const output = decode(socket)[1].payload;
+  assert(output.case === "message" && output.value.payload.case === "response");
+  const result = output.value.payload.value.result as unknown as {
+    case: string;
+    value: { valid: boolean; errors: string[] };
+  };
+  assertEquals(result.case, "teamValidation");
+  assertEquals(result.value.valid, false);
+  assert(result.value.errors.length > 0);
+  assertEquals(store.creates, 0);
+  await hub.shutdown();
+});
+
 class FakeClock implements HubClock {
   private now = 0;
   private next = 1;
