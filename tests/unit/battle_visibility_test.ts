@@ -9,6 +9,43 @@ import {
   spectatorSafeState,
 } from "../../src/battle/visibility.ts";
 
+Deno.test("spectator health tokens are parsed completely in lines and raw events", () => {
+  const cases: Array<[string, string | null]> = [
+    ["123.5/211.5 par", "59/100 par"],
+    ["1/200.5", "1/100"],
+    [".5/2.5 brn", "20/100 brn"],
+    ["1./2. slp", "50/100 slp"],
+    ["0/211.5 fnt", "0/100 fnt"],
+    ["0 fnt", "0 fnt"],
+    ["7/100 tox", "7/100 tox"],
+    ["1/2 psn", "50/100 psn"],
+    ["1/2 frz", "50/100 frz"],
+    ["123/211.5junk", null],
+    ["123/0", null],
+    ["NaN/211", null],
+    ["123/211 Secret", null],
+    ["123/211 par trailing", null],
+  ];
+  for (const [token, expected] of cases) {
+    for (const name of ["switch", "drag", "replace", "-damage", "-heal", "-sethp"]) {
+      const args = ["p1a: Pikachu"];
+      if (["switch", "drag", "replace"].includes(name)) args.push("Pikachu, M");
+      args.push(token);
+      const projected = args.with(args.length - 1, expected ?? "");
+      assertEquals(
+        spectatorSafeLines([`|${name}|${args.join("|")}`]),
+        expected === null ? [] : [`|${name}|${projected.join("|")}`],
+        `${name}: ${token}`,
+      );
+      assertEquals(
+        spectatorSafeEvents([{ type: "raw", name, args, kwArgs: {} }]),
+        expected === null ? [] : [{ type: "raw", name, args: projected, kwArgs: {} }],
+        `${name}: raw ${token}`,
+      );
+    }
+  }
+});
+
 Deno.test("spectator lines redact exact HP including multi-target sethp", () => {
   assertEquals(
     spectatorSafeLines([
@@ -32,17 +69,29 @@ Deno.test("spectator projection removes private sets and rounds health up", () =
   tracker.initialize("singles", [["Pikachu"], ["Rattata"]]);
   const { state } = tracker.ingest(["|switch|p1a: Pikachu|Pikachu, L100, M|123/211"]);
   const pokemon = state.sides[0].active[0]!;
-  pokemon.item = "Choice Band";
-  pokemon.ability = "Secret Ability";
-  pokemon.moves = [{ id: "hiddenmove", name: "Hidden Move", pp: 7 }];
+  const bench = state.sides[1].team[0];
+  for (const mon of [pokemon, bench]) {
+    mon.hp = 123.5;
+    mon.maxhp = 211.5;
+    mon.hpIsPercent = false;
+    mon.item = "Choice Band";
+    mon.ability = "Secret Ability";
+    mon.moves = [{ id: "hiddenmove", name: "Hidden Move", pp: 7 }];
+  }
   const projected = spectatorSafeState(state);
   encodeState(projected);
   const output = JSON.stringify(projected);
   for (const secret of ["Choice Band", "Secret Ability", "hiddenmove", "123", "211"]) {
     assert(!output.includes(secret), secret);
   }
-  assertEquals(projected.sides[0].active[0]?.hp, 59);
-  assertEquals(projected.sides[0].active[0]?.maxhp, 100);
+  for (const mon of [projected.sides[0].active[0]!, projected.sides[1].team[0]]) {
+    assertEquals(mon.hp, 59);
+    assertEquals(mon.maxhp, 100);
+    assertEquals(mon.hpIsPercent, true);
+    assertEquals(mon.item, null);
+    assertEquals(mon.ability, null);
+    assertEquals(mon.moves, []);
+  }
   assertEquals(pokemon.item, "Choice Band");
 });
 
@@ -51,7 +100,7 @@ Deno.test("spectator events preserve public reveals but never requests or exact 
   assertEquals(
     spectatorSafeEvents([
       { type: "raw", name: "request", args: ['{"item":"Choice Band"}'], kwArgs: {} },
-      { type: "damage", target, hp: 123, maxhp: 211, hpIsPercent: false, status: null },
+      { type: "damage", target, hp: 123.5, maxhp: 211.5, hpIsPercent: false, status: null },
       { type: "reveal", target, what: "ability", value: "Static" },
     ]),
     [

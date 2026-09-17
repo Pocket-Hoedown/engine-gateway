@@ -19,6 +19,68 @@ import {
   type Replay,
 } from "./types.ts";
 
+// Validate before tracker ingestion: its tolerant raw-event fallback is not a
+// safe place for malformed private payloads. Never expose parser error text.
+function validatedRequest(json: string) {
+  const object = (value: unknown): Record<string, unknown> => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Invalid simulator request");
+    }
+    return value as Record<string, unknown>;
+  };
+  const raw = object(JSON.parse(json));
+  const valid = (condition: boolean) => {
+    if (!condition) throw new Error("Invalid simulator request");
+  };
+  const optionalBoolean = (record: Record<string, unknown>, key: string) => {
+    valid(record[key] === undefined || typeof record[key] === "boolean");
+  };
+  const array = (value: unknown): unknown[] => {
+    if (!Array.isArray(value)) throw new Error("Invalid simulator request");
+    return value;
+  };
+  for (const key of ["wait", "teamPreview"]) optionalBoolean(raw, key);
+  if (raw.side !== undefined) {
+    for (const pokemon of array(object(raw.side).pokemon)) {
+      optionalBoolean(object(pokemon), "active");
+    }
+  }
+  if (raw.active !== undefined) {
+    for (const value of array(raw.active)) {
+      const active = object(value);
+      optionalBoolean(active, "trapped");
+      for (const move of array(active.moves ?? [])) optionalBoolean(object(move), "disabled");
+    }
+  }
+  if (raw.rqid !== undefined) {
+    valid(
+      typeof raw.rqid === "number" && Number.isInteger(raw.rqid) && raw.rqid >= 0 &&
+        raw.rqid <= 0xffffffff,
+    );
+  }
+  if (raw.forceSwitch !== undefined) {
+    valid(
+      Array.isArray(raw.forceSwitch) &&
+        raw.forceSwitch.every((value) => typeof value === "boolean"),
+    );
+  }
+  const request = parseRequest(json);
+  for (const pokemon of request.team) {
+    valid(
+      [pokemon.ident, pokemon.details, pokemon.condition].every((value) =>
+        typeof value === "string"
+      ),
+    );
+  }
+  for (const active of request.active ?? []) {
+    for (const move of active.moves) {
+      valid([move.id, move.name, move.target].every((value) => typeof value === "string"));
+      valid([move.pp, move.maxpp].every((value) => Number.isInteger(value) && value >= 0));
+    }
+  }
+  return request;
+}
+
 type SimPlayer = "p1" | "p2";
 interface Binding {
   id: string;
@@ -104,9 +166,9 @@ export class BattleSession {
     this.streams = BattleStreams.getPlayerStreams(this.battleStream);
 
     this.write(buildStartBlock(inputs.formatid, inputs.seed, inputs.packedTeams));
-    void this.pumpSide("p1");
-    void this.pumpSide("p2");
-    void this.pumpSpectator();
+    void this.pumpSide("p1").catch(() => this.failPump("p1"));
+    void this.pumpSide("p2").catch(() => this.failPump("p2"));
+    void this.pumpSpectator().catch(() => this.failPump());
   }
 
   private write(line: string): void {
@@ -199,6 +261,13 @@ export class BattleSession {
     }
   }
 
+  private failPump(player?: SimPlayer): void {
+    if (player) {
+      this.queueForPlayer(player).push({ kind: "error", message: "Simulator stream failed" });
+    }
+    this.destroy();
+  }
+
   private queueForPlayer(player: SimPlayer): PushQueue<BattleEvent> {
     return this.queues.get(this.byPlayer.get(player) as string) as PushQueue<BattleEvent>;
   }
@@ -235,7 +304,7 @@ export class BattleSession {
         turn: result.state.turn,
         phase: result.state.phase,
         protocolLines: renderLines,
-        events: result.events,
+        events: result.events.filter((event) => event.type !== "raw" || event.name !== "request"),
         checkpoint: result.state,
       },
     });
@@ -247,22 +316,52 @@ export class BattleSession {
     for await (const chunk of this.streams[player]) {
       const parsed = splitSideChunk(chunk);
       const { terminal } = parsed;
-      // Complete private ingestion before publishing the corresponding boundary.
-      this.pushNormalized(queue, tracker, parsed.trackerLines, parsed.renderLines);
-      if (parsed.requestJson) {
-        const request = parseRequest(parsed.requestJson);
-        const controllerId = this.byPlayer.get(player)!;
-        if (request.wait) this.pendingRequests.clear(controllerId);
-        else this.pendingRequests.open(controllerId, request.rqid);
-        queue.push({ kind: "request", request });
-        this.markSpectatorReady(player);
-      }
-      for (const message of parsed.errors) {
-        if (message.startsWith("[Invalid choice]")) {
-          this.pendingRequests.reject(this.byPlayer.get(player)!);
+      // Validate every private entry before any frame from this chunk is published.
+      const entries = parsed.entries.map((entry) => {
+        if (entry.kind !== "request") return entry;
+        try {
+          return { ...entry, request: validatedRequest(entry.json) };
+        } catch {
+          return { kind: "invalidRequest" as const };
         }
-        queue.push({ kind: "error", message });
+      });
+      const controllerId = this.byPlayer.get(player)!;
+      let lines: string[] = [];
+      const flush = () => {
+        this.pushNormalized(queue, tracker, lines, lines);
+        lines = [];
+      };
+      for (const entry of entries) {
+        switch (entry.kind) {
+          case "line":
+            lines.push(entry.line);
+            break;
+          case "request": {
+            const { request } = entry;
+            this.pushNormalized(queue, tracker, [...lines, `|request|${entry.json}`], lines);
+            lines = [];
+            if (request.wait) this.pendingRequests.clear(controllerId);
+            else this.pendingRequests.open(controllerId, request.rqid);
+            queue.push({ kind: "request", request });
+            this.markSpectatorReady(player);
+            break;
+          }
+          case "invalidRequest":
+            flush();
+            this.pendingRequests.clear(controllerId);
+            queue.push({ kind: "error", message: "Invalid simulator request" });
+            this.markSpectatorReady(player);
+            break;
+          case "error":
+            flush();
+            if (entry.message.startsWith("[Invalid choice]")) {
+              this.pendingRequests.reject(controllerId);
+            }
+            queue.push({ kind: "error", message: entry.message });
+            break;
+        }
       }
+      flush();
       if (terminal !== undefined) {
         this.closePlayer(player, terminal);
         return;

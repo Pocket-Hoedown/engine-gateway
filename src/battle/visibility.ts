@@ -5,27 +5,52 @@ function percent(hp: number, maxhp: number): number {
   return maxhp > 0 ? Math.max(0, Math.min(100, Math.ceil(hp * 100 / maxhp))) : 0;
 }
 
+// Match the complete health field, not an integer prefix of a decimal token.
+// Unknown/malformed health is dropped rather than forwarded through a raw fallback.
+function healthToken(token: string): string | null {
+  const match =
+    /^(\d+(?:\.\d*)?|\.\d+)(?:\/(\d+(?:\.\d*)?|\.\d+))?(?: (par|brn|slp|psn|tox|frz|fnt))?$/.exec(
+      token,
+    );
+  if (!match) return null;
+  const hp = Number(match[1]);
+  const maxhp = match[2] === undefined ? undefined : Number(match[2]);
+  const status = match[3] ? ` ${match[3]}` : "";
+  if (!Number.isFinite(hp) || (match[3] === "fnt" && hp !== 0)) return null;
+  if (maxhp === undefined) return hp === 0 ? `0${status}` : null;
+  if (!Number.isFinite(maxhp) || maxhp <= 0) return null;
+  return `${percent(hp, maxhp)}/100${status}`;
+}
+
+function publicArgs(name: string, input: string[]): string[] | null {
+  if (name === "request" || name === "error" || name === "sideupdate") return null;
+  const args = [...input];
+  const indexes = name === "switch" || name === "drag" || name === "replace"
+    ? [2]
+    : name === "-damage" || name === "-heal"
+    ? [1]
+    : [];
+  if (name === "-sethp") {
+    for (let i = 0; i < args.length && !args[i].startsWith("["); i += 2) {
+      indexes.push(i + 1);
+    }
+    if (!indexes.length) return null;
+  }
+  for (const index of indexes) {
+    const projected = healthToken(args[index] ?? "");
+    if (projected === null) return null;
+    args[index] = projected;
+  }
+  return args;
+}
+
 // Custom Game can expose exact HP even on the simulator spectator stream.
 // Project protocol health fields before tracking, so raw fallback events are safe too.
 export function spectatorSafeLines(lines: string[]): string[] {
   return lines.flatMap((line) => {
-    const fields = line.split("|");
-    const name = fields[1];
-    if (name === "request" || name === "error" || name === "sideupdate") return [];
-    const indexes = name === "switch" || name === "drag" || name === "replace"
-      ? [4]
-      : name === "-damage" || name === "-heal"
-      ? [3]
-      : name === "-sethp"
-      ? fields.map((_, i) => i).filter((i) => i >= 3 && i % 2 === 1)
-      : [];
-    for (const index of indexes) {
-      fields[index] = (fields[index] ?? "").replace(
-        /^(\d+)\/(\d+)/,
-        (_, hp, maxhp) => `${percent(Number(hp), Number(maxhp))}/100`,
-      );
-    }
-    return [fields.join("|")];
+    const [prefix, name, ...input] = line.split("|");
+    const args = publicArgs(name, input);
+    return args === null ? [] : [[prefix, name, ...args].join("|")];
   });
 }
 
@@ -149,14 +174,16 @@ export function spectatorSafeEvents(events: SemanticEvent[]): SemanticEvent[] {
         return [{ type: e.type, target: ref(e.target), id: e.id, name: e.name, ended: e.ended }];
       case "cant":
         return [{ type: e.type, target: ref(e.target), reason: e.reason, move: e.move }];
-      case "raw":
-        if (e.name === "request" || e.name === "error" || e.name === "sideupdate") return [];
+      case "raw": {
+        const args = publicArgs(e.name, e.args);
+        if (args === null) return [];
         return [{
           type: e.type,
           name: e.name,
-          args: [...e.args],
+          args,
           kwArgs: Object.fromEntries(Object.entries(e.kwArgs)),
         }];
+      }
     }
   });
 }

@@ -6,6 +6,69 @@ import type { BattleEvent, ControllerSpec } from "../../src/battle/types.ts";
 
 import { BattleRequestError } from "../../src/battle/types.ts";
 
+Deno.test("malformed requests emit controlled errors without leaking or killing side pumps", async () => {
+  const session = new BattleSession("malformed-request", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  const iterator = session.events("a")[Symbol.asyncIterator]();
+  try {
+    while ((await iterator.next()).value?.kind !== "request") { /* Drain initialization. */ }
+    for (
+      const malformed of [
+        '{"Secret Request":',
+        "null",
+        "[]",
+        '{"side":{"pokemon":{}}}',
+        '{"active":false}',
+        '{"active":[{"moves":[],"trapped":"Secret Request"}]}',
+      ]
+    ) {
+      session["streams"].p1.push(`|request|${malformed}`);
+      const error = (await iterator.next()).value;
+      assertEquals(error, { kind: "error", message: "Invalid simulator request" });
+      assert(!JSON.stringify(error).includes("Secret Request"));
+    }
+    session["streams"].p1.push(
+      '|error|before\n|request|{"rqid":21}\n|error|between\n|request|{"rqid":22}',
+    );
+    const events: BattleEvent[] = [];
+    for (let i = 0; i < 6; i++) events.push((await iterator.next()).value!);
+    assertEquals(events.map((e) => e.kind), [
+      "error",
+      "frame",
+      "request",
+      "error",
+      "frame",
+      "request",
+    ]);
+    assertEquals(events.flatMap((e) => e.kind === "request" ? [e.request.rqid] : []), [21, 22]);
+    for (const event of events) {
+      if (event.kind !== "frame") continue;
+      assertEquals(event.frame.protocolLines, []);
+      assert(!event.frame.events.some((e) => e.type === "raw" && e.name === "request"));
+      assert(!JSON.stringify(event.frame.events).includes("rqid"));
+    }
+    session["streams"].p1.push('|request|{"Secret Request":\n|win|P1');
+    assertEquals((await iterator.next()).value, {
+      kind: "error",
+      message: "Invalid simulator request",
+    });
+    const frame: BattleEvent = (await iterator.next()).value!;
+    assertEquals(frame.kind, "frame");
+    if (frame.kind === "frame") {
+      assertEquals(frame.frame.protocolLines, ["|win|P1"]);
+      assertEquals(frame.frame.checkpoint.phase, "ended");
+      assert(!JSON.stringify(frame.frame.events).includes("Secret Request"));
+      assert(!frame.frame.events.some((e) => e.type === "raw" && e.name === "request"));
+    }
+    assertEquals((await iterator.next()).value, { kind: "ended", winner: "P1" });
+  } finally {
+    session.destroy();
+  }
+});
+
 Deno.test("private requests follow a render-safe checkpoint boundary", async () => {
   const session = new BattleSession("privacy-order", {
     mode: StandardMode,
@@ -31,6 +94,53 @@ Deno.test("private requests follow a render-safe checkpoint boundary", async () 
       }
       previous = event;
     }
+  } finally {
+    session.destroy();
+  }
+});
+
+Deno.test("decimal spectator health stays public in active bench events and checkpoints", async () => {
+  const session = new BattleSession("decimal-health", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  const iterator = session.spectator()[Symbol.asyncIterator]();
+  try {
+    await iterator.next();
+    session["streams"].spectator.push([
+      "|switch|p1a: Pikachu|Pikachu, M|123.5/211.5 par",
+      "|-damage|p1a: Pikachu|123.5/211.5 par",
+      "|switch|p1a: Bulbasaur|Bulbasaur, M|1.5/7.5",
+      "|-heal|not-an-ident|123.5/211.5 par",
+    ].join("\n"));
+    const event: BattleEvent = (await iterator.next()).value;
+    assertEquals(event.kind, "frame");
+    if (event.kind !== "frame") throw new Error("missing checkpoint");
+    assert(!JSON.stringify(event.frame).includes("211.5"));
+    assert(!JSON.stringify(event.frame).includes("123.5"));
+    const side = event.frame.checkpoint.sides[0];
+    assertEquals(side.active[0]?.hp, 20);
+    const bench = side.team.find((p) => p.speciesForme === "Pikachu");
+    assertExists(bench);
+    assertEquals(bench.hp, 59);
+    for (const mon of [side.active[0]!, bench]) {
+      assertEquals(mon.maxhp, 100);
+      assertEquals(mon.hpIsPercent, true);
+      assertEquals(mon.item, null);
+      assertEquals(mon.ability, null);
+      assertEquals(mon.moves, []);
+    }
+    const damage = event.frame.events.find((e) => e.type === "damage");
+    assertExists(damage);
+    if (damage.type === "damage") {
+      assertEquals(damage.hp, 59);
+      assertEquals(damage.maxhp, 100);
+      assertEquals(damage.hpIsPercent, true);
+    }
+    const fallback = event.frame.events.find((e) => e.type === "raw" && e.name === "-heal");
+    assertExists(fallback);
+    if (fallback.type === "raw") assertEquals(fallback.args, ["not-an-ident", "59/100 par"]);
   } finally {
     session.destroy();
   }
