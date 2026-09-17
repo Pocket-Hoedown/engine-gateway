@@ -6,6 +6,45 @@ import type { BattleEvent, ControllerSpec } from "../../src/battle/types.ts";
 
 import { BattleRequestError } from "../../src/battle/types.ts";
 
+Deno.test("bare percentages and colored health update spectator checkpoints", async () => {
+  const session = new BattleSession("health-syntax", {
+    mode: StandardMode,
+    format: "single",
+    controllers: singles(),
+  }, 42);
+  const iterator = session.spectator()[Symbol.asyncIterator]();
+  try {
+    await iterator.next();
+    session["streams"].spectator.push("|switch|p1a: Pikachu|Pikachu, M|100/100");
+    await iterator.next();
+    const cases: Array<[string, number, string | null, boolean]> = [
+      ["50", 50, null, false],
+      ["50.5 par", 51, "par", false],
+      ["24/48y", 50, null, false],
+      ["36/48g brn", 75, "brn", false],
+      ["9/48r", 19, null, false],
+      ["0/48r fnt", 0, null, true],
+    ];
+    for (const [token, hp, status, fainted] of cases) {
+      // A public turn line ensures an incorrectly dropped health update still emits
+      // a frame, so the regression fails on checkpoint behavior rather than hanging.
+      session["streams"].spectator.push(`|-damage|p1a: Pikachu|${token}\n|turn|2`);
+      const event: BattleEvent = (await iterator.next()).value;
+      assertEquals(event.kind, "frame");
+      if (event.kind !== "frame") throw new Error("missing frame");
+      assert(event.frame.protocolLines.some((line) => line.startsWith("|-damage|")), token);
+      const pokemon = event.frame.checkpoint.sides[0].active[0]!;
+      assertEquals(pokemon.hp, hp, token);
+      assertEquals(pokemon.maxhp, 100);
+      assertEquals(pokemon.hpIsPercent, true);
+      assertEquals(pokemon.status, status);
+      assertEquals(pokemon.fainted, fainted);
+    }
+  } finally {
+    session.destroy();
+  }
+});
+
 Deno.test("malformed requests emit controlled errors without leaking or killing side pumps", async () => {
   const session = new BattleSession("malformed-request", {
     mode: StandardMode,

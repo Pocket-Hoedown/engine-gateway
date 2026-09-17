@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { Generations } from "@pkmn/data";
 import { Dex } from "@pkmn/dex";
+import { Protocol } from "@pkmn/protocol";
 import { encodeState } from "../../src/ws/encode.ts";
 import { StateTracker } from "../../src/battle/tracker.ts";
 import {
@@ -11,6 +12,19 @@ import {
 
 Deno.test("spectator health tokens are parsed completely in lines and raw events", () => {
   const cases: Array<[string, string | null]> = [
+    ["50", "50/100"],
+    ["50.5 par", "51/100 par"],
+    ["24/48y", "50/100"],
+    ["36/48g brn", "75/100 brn"],
+    ["9/48r", "19/100"],
+    ["24.5/48.5y tox", "51/100 tox"],
+    ["0/48r fnt", "0/100 fnt"],
+    ["50 fnt", "0/100 fnt"],
+    ["24/48y fnt", "0/100 fnt"],
+    ["50.5junk", null],
+    ["24/48yellow", null],
+    ["24/48yg", null],
+    ["24/48y par trailing", null],
     ["123.5/211.5 par", "59/100 par"],
     ["1/200.5", "1/100"],
     [".5/2.5 brn", "20/100 brn"],
@@ -27,6 +41,11 @@ Deno.test("spectator health tokens are parsed completely in lines and raw events
     ["123/211 par trailing", null],
   ];
   for (const [token, expected] of cases) {
+    if (expected !== null) {
+      const parsed = Protocol.parseHealth(token as never);
+      assert(parsed, `installed parser accepts ${token}`);
+      assertEquals(Math.ceil(parsed.hp * 100 / parsed.maxhp), parseFloat(expected), token);
+    }
     for (const name of ["switch", "drag", "replace", "-damage", "-heal", "-sethp"]) {
       const args = ["p1a: Pikachu"];
       if (["switch", "drag", "replace"].includes(name)) args.push("Pikachu, M");

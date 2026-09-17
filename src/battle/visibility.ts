@@ -9,17 +9,19 @@ function percent(hp: number, maxhp: number): number {
 // Unknown/malformed health is dropped rather than forwarded through a raw fallback.
 function healthToken(token: string): string | null {
   const match =
-    /^(\d+(?:\.\d*)?|\.\d+)(?:\/(\d+(?:\.\d*)?|\.\d+))?(?: (par|brn|slp|psn|tox|frz|fnt))?$/.exec(
-      token,
-    );
+    /^(\d+(?:\.\d*)?|\.\d+)(?:\/(\d+(?:\.\d*)?|\.\d+)[gyr]?)?(?: (par|brn|slp|psn|tox|frz|fnt))?$/
+      .exec(
+        token,
+      );
   if (!match) return null;
   const hp = Number(match[1]);
-  const maxhp = match[2] === undefined ? undefined : Number(match[2]);
+  // The installed parser interprets bare numbers as percentages and fnt as
+  // authoritative zero HP. Color hints are public, but redundant after scaling.
+  const maxhp = match[2] === undefined ? 100 : Number(match[2]);
   const status = match[3] ? ` ${match[3]}` : "";
-  if (!Number.isFinite(hp) || (match[3] === "fnt" && hp !== 0)) return null;
-  if (maxhp === undefined) return hp === 0 ? `0${status}` : null;
-  if (!Number.isFinite(maxhp) || maxhp <= 0) return null;
-  return `${percent(hp, maxhp)}/100${status}`;
+  if (!Number.isFinite(hp) || !Number.isFinite(maxhp) || maxhp <= 0) return null;
+  if (match[2] === undefined && hp === 0) return `0${status}`;
+  return `${percent(match[3] === "fnt" ? 0 : hp, maxhp)}/100${status}`;
 }
 
 function publicArgs(name: string, input: string[]): string[] | null {
